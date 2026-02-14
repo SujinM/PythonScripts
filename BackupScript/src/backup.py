@@ -22,6 +22,161 @@ from datetime import datetime
 from pathlib import Path
 import sys
 import platform
+import time
+
+
+class ProgressBar:
+    """
+    Professional progress bar with percentage, time estimation, and file display.
+    Shows all files being processed with their status.
+    """
+    
+    def __init__(self, total, prefix='Progress', bar_length=40):
+        """
+        Initialize progress bar.
+        
+        Args:
+            total (int): Total number of items to process
+            prefix (str): Prefix text for progress bar
+            bar_length (int): Length of progress bar in characters
+        """
+        self.total = total
+        self.prefix = prefix
+        self.bar_length = bar_length
+        self.current = 0
+        self.start_time = time.time()
+        self.progress_lines = 0  # Track how many lines progress bar uses
+        
+    def update(self, current_file="", status="", increment=1):
+        """
+        Update progress bar and show file status.
+        
+        Args:
+            current_file (str): Current file being processed
+            status (str): Status of the file (COPIED, UPDATED, SKIPPED)
+            increment (int): Number to increment current count by
+        """
+        self.current += increment
+        
+        # Show file status above progress bar
+        if current_file and status:
+            self._display_file_status(current_file, status)
+        
+        self._draw()
+    
+    def _display_file_status(self, file_path, status):
+        """
+        Display file status with color coding.
+        
+        Args:
+            file_path (str): Path to the file
+            status (str): Status (COPIED, UPDATED, SKIPPED, ERROR)
+        """
+        # Truncate long paths
+        display_path = file_path
+        if len(display_path) > 90:
+            display_path = "..." + display_path[-87:]
+        
+        # Color code based on status
+        if status == "COPIED":
+            color = "\033[32m"  # Green
+            icon = "✓"
+        elif status == "UPDATED":
+            color = "\033[33m"  # Yellow
+            icon = "↻"
+        elif status == "SKIPPED":
+            color = "\033[90m"  # Gray
+            icon = "○"
+        elif status == "ERROR":
+            color = "\033[31m"  # Red
+            icon = "✗"
+        else:
+            color = "\033[37m"  # White
+            icon = "•"
+        
+        # Clear the progress bar lines temporarily
+        if self.progress_lines > 0:
+            sys.stdout.write(f'\033[{self.progress_lines}A\033[J')
+        
+        # Print the file status
+        print(f"{color}[{status:7}] {icon} {display_path}\033[0m")
+        sys.stdout.flush()
+    
+    def _draw(self):
+        """Draw the progress bar at the bottom."""
+        if self.total == 0:
+            return
+        
+        # Calculate percentage
+        percent = (self.current / self.total) * 100
+        
+        # Calculate elapsed time and estimate remaining time
+        elapsed_time = time.time() - self.start_time
+        if self.current > 0:
+            avg_time_per_file = elapsed_time / self.current
+            remaining_files = self.total - self.current
+            remaining_time = avg_time_per_file * remaining_files
+        else:
+            remaining_time = 0
+        
+        # Format time
+        elapsed_str = self._format_time(elapsed_time)
+        remaining_str = self._format_time(remaining_time)
+        
+        # Calculate bar fill
+        filled_length = int(self.bar_length * self.current // self.total)
+        bar = '█' * filled_length + '░' * (self.bar_length - filled_length)
+        
+        # Calculate speed
+        speed = self.current / elapsed_time if elapsed_time > 0 else 0
+        
+        # Draw separator line
+        print("\033[36m" + "─" * 100 + "\033[0m")
+        
+        # Display progress bar
+        print(f"\033[1m{self.prefix}: |{bar}| {percent:.1f}% ({self.current}/{self.total})\033[0m")
+        
+        # Display stats (elapsed, remaining, speed)
+        stats = f"⏱  Elapsed: {elapsed_str} | ⏳ Remaining: ~{remaining_str} | 🚀 Speed: {speed:.1f} files/s"
+        print(f"\033[36m{stats}\033[0m")
+        
+        # Remember we used 3 lines for progress bar
+        self.progress_lines = 3
+        
+        sys.stdout.flush()
+    
+    def _format_time(self, seconds):
+        """
+        Format time in seconds to readable format.
+        
+        Args:
+            seconds (float): Time in seconds
+            
+        Returns:
+            str: Formatted time string
+        """
+        if seconds < 60:
+            return f"{int(seconds)}s"
+        elif seconds < 3600:
+            minutes = int(seconds // 60)
+            secs = int(seconds % 60)
+            return f"{minutes}m {secs}s"
+        else:
+            hours = int(seconds // 3600)
+            minutes = int((seconds % 3600) // 60)
+            return f"{hours}h {minutes}m"
+    
+    def finish(self):
+        """Mark progress as complete."""
+        self.current = self.total
+        
+        # Clear progress bar lines
+        if self.progress_lines > 0:
+            sys.stdout.write(f'\033[{self.progress_lines}A\033[J')
+        
+        # Draw final progress bar
+        self._draw()
+        print()  # New line after completion
 
 
 class BackupManager:
@@ -188,7 +343,23 @@ class BackupManager:
             self.log_info("Starting backup operation...")
             self.log_info("=" * 60)
             
-            # Walk through all files in source folder
+            # First pass: Count total files
+            print("\n\033[33m📊 Scanning files...\033[0m")
+            total_files = 0
+            for root, dirs, files in os.walk(self.source_folder):
+                total_files += len(files)
+            
+            print(f"\033[32m✓ Found {total_files} files to process\033[0m\n")
+            
+            if total_files == 0:
+                self.log_info("No files to backup.")
+                return
+            
+            # Initialize progress bar (reserve 3 lines)
+            print("\n\n")  # Reserve space for progress bar
+            progress = ProgressBar(total_files, prefix='Backup Progress')
+            
+            # Second pass: Perform backup with progress
             for root, dirs, files in os.walk(self.source_folder):
                 # Calculate relative path from source
                 rel_path = os.path.relpath(root, self.source_folder)
@@ -211,19 +382,27 @@ class BackupManager:
                     # Determine action based on file comparison
                     action = self.compare_files(source_file, dest_file)
                     
+                    # Perform action and update progress bar with status
                     if action == 'copy':
                         if self.copy_file(source_file, dest_file):
-                            self.log_info(f"[COPIED] {source_file}")
                             self.stats['copied'] += 1
+                            progress.update(current_file=source_file, status="COPIED")
+                        else:
+                            progress.update(current_file=source_file, status="ERROR")
                     
                     elif action == 'update':
                         if self.copy_file(source_file, dest_file):
-                            self.log_info(f"[UPDATED] {source_file}")
                             self.stats['updated'] += 1
+                            progress.update(current_file=source_file, status="UPDATED")
+                        else:
+                            progress.update(current_file=source_file, status="ERROR")
                     
                     elif action == 'skip':
-                        self.log_debug(f"[SKIPPED] {source_file}")
                         self.stats['skipped'] += 1
+                        progress.update(current_file=source_file, status="SKIPPED")
+            
+            # Finish progress bar
+            progress.finish()
             
             self.log_info("=" * 60)
             self.log_info("Backup completed successfully!")
