@@ -94,7 +94,7 @@ BackupScript/
 
 ```bash
 cd scripts
-.\build.bat
+.\build-test.bat
 ```
 
 **Output:** `dist/backup.exe` (7.1 MB)
@@ -107,7 +107,7 @@ cd scripts
 
 ```bash
 cd scripts
-.\build-complete.bat
+.\build-production.bat
 ```
 
 **Output:** `dist/backup.exe` (7.45 MB)
@@ -209,7 +209,7 @@ python tools/png_to_ico.py
 
 ```bash
 cd scripts
-.\build.bat
+.\build-test.bat
 ```
 
 ## 📖 Documentation
