@@ -1,0 +1,8 @@
+# Python Backup Utility - Dependencies
+# Install with: pip install -r requirements.txt
+
+# EXE Creation
+pyinstaller>=6.0.0
+
+# Icon Processing
+Pillow>=10.0.0

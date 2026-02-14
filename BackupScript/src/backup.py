@@ -21,6 +21,7 @@ import configparser
 from datetime import datetime
 from pathlib import Path
 import sys
+import platform
 
 
 class BackupManager:
@@ -252,14 +253,6 @@ class BackupManager:
         Returns:
             int: Exit code (0 for success, 1 for failure)
         """
-        self.log_info("?????????????????????????????????????????????????????????????")
-        self.log_info("?                                                           ?")
-        self.log_info("?              FOLDER BACKUP UTILITY v1.0                   ?")
-        self.log_info("?              Configuration-Based Backup                   ?")
-        self.log_info("?                                                           ?")
-        self.log_info("?????????????????????????????????????????????????????????????")
-        self.log_info("")
-        
         # Step 1: Load configuration
         if not self.load_configuration():
             self.log_error("Failed to load configuration. Exiting.")
@@ -297,19 +290,102 @@ class BackupManager:
         pass
 
 
+def create_default_config():
+    """
+    Create a default config.ini template if it doesn't exist.
+    
+    Returns:
+        str: Path to config file
+    """
+    config_content = """# Backup Configuration File
+# ==========================
+# This file contains settings for the folder backup utility.
+# 
+# Instructions:
+# 1. Edit the paths below to match your needs
+# 2. Use full paths (e.g., C:\\Users\\YourName\\Documents)
+# 3. Paths can contain spaces
+# 4. Do not use quotes around paths
+#
+# Example:
+# source_folder = C:\\Data\\TestFolder
+# destination_folder = D:\\Backup
+# This will create: D:\\Backup\\TestFolder
+
+[Backup]
+# Source folder to backup
+# This is the folder you want to backup
+source_folder = C:\\Temp\\New folder
+
+# Destination folder
+# This is where the backup will be stored
+# The source folder name will be automatically appended
+destination_folder = C:\\Temp\\Backup
+"""
+    
+    try:
+        if not os.path.exists('config.ini'):
+            with open('config.ini', 'w', encoding='utf-8') as f:
+                f.write(config_content)
+            return 'config.ini'
+        return 'config.ini'
+    except Exception as e:
+        print(f"[ERROR] Failed to create config.ini: {str(e)}")
+        return None
+
+
 def main():
     """
     Main entry point of the script.
     """
     try:
-        backup_manager = BackupManager('config.ini')
+        # Display header
+        print()
+        print("?????????????????????????????????????????????????????????????")
+        print("?                                                           ?")
+        print("?           PYTHON BACKUP UTILITY - LAUNCHER                ?")
+        print("?                                                           ?")
+        print("?????????????????????????????????????????????????????????????")
+        print()
+        
+        # Create default config if not found
+        config_file = create_default_config()
+        if not config_file:
+            print("[ERROR] Failed to create configuration file!")
+            print()
+            input("Press Enter to exit...")
+            sys.exit(1)
+        
+        # Display Python version
+        print(f"[INFO] Python version: {platform.python_version()}")
+        print()
+        print("[INFO] Starting backup...")
+        print()
+        
+        # Run the backup manager
+        backup_manager = BackupManager(config_file)
         exit_code = backup_manager.run()
+        
+        # Show success or failure message
+        print()
+        if exit_code == 0:
+            print("[SUCCESS] Backup completed successfully!")
+        else:
+            print("[ERROR] Backup failed with errors.")
+        
+        print()
+        input("Press Enter to exit...")
         sys.exit(exit_code)
+        
     except KeyboardInterrupt:
         print("\n[WARNING] Backup interrupted by user.")
+        print()
+        input("Press Enter to exit...")
         sys.exit(1)
     except Exception as e:
         print(f"[FATAL] Unexpected error: {str(e)}", file=sys.stderr)
+        print()
+        input("Press Enter to exit...")
         sys.exit(1)
 
 
