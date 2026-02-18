@@ -20,7 +20,7 @@ BEGIN
         BLOCK "040904b0"
         BEGIN
             VALUE "CompanyName", "Sujin"
-            VALUE "FileDescription", "Professional Folder Backup Solution with Cloud Storage Support"
+            VALUE "FileDescription", "Professional Folder Backup Solution"
             VALUE "FileVersion", "1.0.0.0"
             VALUE "InternalName", "backup"
             VALUE "LegalCopyright", "Copyright (C) 2026 Sujin. All Rights Reserved."

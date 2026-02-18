@@ -334,22 +334,119 @@ class BackupManager:
             self.stats['errors'] += 1
             return False
     
-    def perform_backup(self):
+    def scan_files(self):
         """
-        Perform the backup operation by walking through source folder.
+        Scan all files and collect statistics without performing actual backup.
+        
+        Returns:
+            dict: Dictionary containing file lists and statistics
+        """
+        scan_results = {
+            'to_copy': [],      # New files to copy
+            'to_update': [],    # Existing files to update
+            'to_skip': [],      # Files that are up to date
+            'total': 0
+        }
+        
+        try:
+            print("\n\033[33m Scanning files and analyzing changes...\033[0m")
+            
+            for root, dirs, files in os.walk(self.source_folder):
+                # Calculate relative path from source
+                rel_path = os.path.relpath(root, self.source_folder)
+                
+                # Calculate corresponding destination directory
+                if rel_path == '.':
+                    dest_dir = self.backup_folder
+                else:
+                    dest_dir = os.path.join(self.backup_folder, rel_path)
+                
+                # Analyze each file
+                for file in files:
+                    source_file = os.path.join(root, file)
+                    dest_file = os.path.join(dest_dir, file)
+                    
+                    # Determine action based on file comparison
+                    action = self.compare_files(source_file, dest_file)
+                    
+                    # Categorize the file
+                    if action == 'copy':
+                        scan_results['to_copy'].append((source_file, dest_file))
+                    elif action == 'update':
+                        scan_results['to_update'].append((source_file, dest_file))
+                    elif action == 'skip':
+                        scan_results['to_skip'].append((source_file, dest_file))
+                    
+                    scan_results['total'] += 1
+            
+            return scan_results
+            
+        except Exception as e:
+            self.log_error(f"File scanning failed: {str(e)}")
+            return scan_results
+    
+    def display_scan_summary(self, scan_results):
+        """
+        Display a summary of the scan results with paths.
+        
+        Args:
+            scan_results (dict): Results from scan_files()
+        """
+        print("\n" + "=" * 100)
+        print("\033[1m\033[36m                          BACKUP ANALYSIS SUMMARY\033[0m")
+        print("=" * 100)
+        
+        # Display paths
+        print("\n\033[1m SOURCE PATH:\033[0m")
+        print(f"   \033[32m{self.source_folder}\033[0m")
+        
+        print("\n\033[1m DESTINATION PATH:\033[0m")
+        print(f"   \033[32m{self.backup_folder}\033[0m")
+        
+        # Display statistics
+        print("\n\033[1m FILE STATISTICS:\033[0m")
+        print(f"   \033[32m✓ Files to COPY (new files):     {len(scan_results['to_copy']):>6}\033[0m")
+        print(f"   \033[33m↻ Files to UPDATE (modified):    {len(scan_results['to_update']):>6}\033[0m")
+        print(f"   \033[90m○ Files to SKIP (up-to-date):    {len(scan_results['to_skip']):>6}\033[0m")
+        print(f"   \033[1m─────────────────────────────────────────\033[0m")
+        print(f"   \033[1mTotal files:                     {scan_results['total']:>6}\033[0m")
+        
+        print("\n" + "=" * 100 + "\n")
+    
+    def get_user_confirmation(self):
+        """
+        Get user confirmation to proceed with backup.
+        
+        Returns:
+            bool: True if user confirms, False otherwise
+        """
+        while True:
+            response = input("\033[1m Do you want to proceed with the backup? (yes/no): \033[0m").strip().lower()
+            
+            if response in ['yes', 'y']:
+                print("\033[32m✓ Proceeding with backup...\033[0m\n")
+                return True
+            elif response in ['no', 'n']:
+                print("\033[33m✗ Backup cancelled by user.\033[0m\n")
+                return False
+            else:
+                print("\033[31m⚠ Invalid input. Please enter 'yes' or 'no'.\033[0m")
+    
+    def perform_backup(self, scan_results):
+        """
+        Perform the backup operation using pre-scanned file information.
+        
+        Args:
+            scan_results (dict): Results from scan_files()
         """
         try:
             self.log_info("=" * 60)
             self.log_info("Starting backup operation...")
             self.log_info("=" * 60)
             
-            # First pass: Count total files
-            print("\n\033[33m📊 Scanning files...\033[0m")
-            total_files = 0
-            for root, dirs, files in os.walk(self.source_folder):
-                total_files += len(files)
-            
-            print(f"\033[32m✓ Found {total_files} files to process\033[0m\n")
+            # Calculate total files to process (copy + update)
+            files_to_process = scan_results['to_copy'] + scan_results['to_update']
+            total_files = scan_results['total']
             
             if total_files == 0:
                 self.log_info("No files to backup.")
@@ -359,47 +456,26 @@ class BackupManager:
             print("\n\n")  # Reserve space for progress bar
             progress = ProgressBar(total_files, prefix='Backup Progress')
             
-            # Second pass: Perform backup with progress
-            for root, dirs, files in os.walk(self.source_folder):
-                # Calculate relative path from source
-                rel_path = os.path.relpath(root, self.source_folder)
-                
-                # Create corresponding destination directory
-                if rel_path == '.':
-                    dest_dir = self.backup_folder
+            # Process files that need to be copied
+            for source_file, dest_file in scan_results['to_copy']:
+                if self.copy_file(source_file, dest_file):
+                    self.stats['copied'] += 1
+                    progress.update(current_file=source_file, status="COPIED")
                 else:
-                    dest_dir = os.path.join(self.backup_folder, rel_path)
-                
-                # Ensure destination directory exists
-                if not os.path.exists(dest_dir):
-                    os.makedirs(dest_dir)
-                
-                # Process each file
-                for file in files:
-                    source_file = os.path.join(root, file)
-                    dest_file = os.path.join(dest_dir, file)
-                    
-                    # Determine action based on file comparison
-                    action = self.compare_files(source_file, dest_file)
-                    
-                    # Perform action and update progress bar with status
-                    if action == 'copy':
-                        if self.copy_file(source_file, dest_file):
-                            self.stats['copied'] += 1
-                            progress.update(current_file=source_file, status="COPIED")
-                        else:
-                            progress.update(current_file=source_file, status="ERROR")
-                    
-                    elif action == 'update':
-                        if self.copy_file(source_file, dest_file):
-                            self.stats['updated'] += 1
-                            progress.update(current_file=source_file, status="UPDATED")
-                        else:
-                            progress.update(current_file=source_file, status="ERROR")
-                    
-                    elif action == 'skip':
-                        self.stats['skipped'] += 1
-                        progress.update(current_file=source_file, status="SKIPPED")
+                    progress.update(current_file=source_file, status="ERROR")
+            
+            # Process files that need to be updated
+            for source_file, dest_file in scan_results['to_update']:
+                if self.copy_file(source_file, dest_file):
+                    self.stats['updated'] += 1
+                    progress.update(current_file=source_file, status="UPDATED")
+                else:
+                    progress.update(current_file=source_file, status="ERROR")
+            
+            # Process files that are skipped (just update progress)
+            for source_file, dest_file in scan_results['to_skip']:
+                self.stats['skipped'] += 1
+                progress.update(current_file=source_file, status="SKIPPED")
             
             # Finish progress bar
             progress.finish()
@@ -442,8 +518,19 @@ class BackupManager:
             self.log_error("Failed to create backup folder. Exiting.")
             return 1
         
-        # Step 3: Perform backup
-        self.perform_backup()
+        # Step 3: Scan files and collect statistics
+        scan_results = self.scan_files()
+        
+        # Step 4: Display summary
+        self.display_scan_summary(scan_results)
+        
+        # Step 5: Get user confirmation
+        if not self.get_user_confirmation():
+            self.log_info("Backup cancelled by user.")
+            return 0  # Exit gracefully, not an error
+        
+        # Step 6: Perform backup
+        self.perform_backup(scan_results)
         
         # Return exit code based on errors
         return 0 if self.stats['errors'] == 0 else 1
