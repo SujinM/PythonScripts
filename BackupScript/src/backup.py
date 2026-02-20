@@ -58,10 +58,17 @@ class ProgressBar:
         """
         self.current += increment
         
-        # Show file status above progress bar
+        # Clear the current progress bar if it exists
+        if self.progress_lines > 0:
+            # Move cursor up to start of progress bar and clear it
+            sys.stdout.write(f'\033[{self.progress_lines}A\033[J')
+            sys.stdout.flush()
+        
+        # Show file status above progress bar (if provided)
         if current_file and status:
             self._display_file_status(current_file, status)
         
+        # Draw the progress bar
         self._draw()
     
     def _display_file_status(self, file_path, status):
@@ -93,10 +100,6 @@ class ProgressBar:
         else:
             color = "\033[37m"  # White
             icon = "•"
-        
-        # Clear the progress bar lines temporarily
-        if self.progress_lines > 0:
-            sys.stdout.write(f'\033[{self.progress_lines}A\033[J')
         
         # Print the file status
         print(f"{color}[{status:7}] {icon} {display_path}\033[0m")
@@ -177,6 +180,31 @@ class ProgressBar:
         # Draw final progress bar
         self._draw()
         print()  # New line after completion
+    
+    def show_copy_animation(self, file_path, spinner, file_percent):
+        """
+        Show animated copying progress for large files.
+        
+        Args:
+            file_path (str): Path being copied
+            spinner (str): Spinner character/frame
+            file_percent (float): Percentage of file copied
+        """
+        # Clear the progress bar
+        if self.progress_lines > 0:
+            sys.stdout.write(f'\033[{self.progress_lines}A\033[J')
+        
+        # Truncate long paths
+        display_path = file_path
+        if len(display_path) > 75:
+            display_path = "..." + display_path[-72:]
+        
+        # Show animated copying status
+        print(f"\033[36m[COPYING] {spinner} {display_path} ({file_percent:.0f}%)\033[0m")
+        sys.stdout.flush()
+        
+        # Redraw progress bar
+        self._draw()
 
 
 class BackupManager:
@@ -201,6 +229,7 @@ class BackupManager:
             'skipped': 0,
             'errors': 0
         }
+        self.error_files = []  # Track files that had errors
         
     def load_configuration(self):
         """
@@ -308,13 +337,14 @@ class BackupManager:
             self.log_error(f"Error comparing files: {str(e)}")
             return 'skip'
     
-    def copy_file(self, source_file, dest_file):
+    def copy_file(self, source_file, dest_file, progress_callback=None):
         """
         Copy a single file from source to destination.
         
         Args:
             source_file (str): Path to source file
             dest_file (str): Path to destination file
+            progress_callback (callable): Optional callback for progress updates
         
         Returns:
             bool: True if copy was successful
@@ -325,14 +355,60 @@ class BackupManager:
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
             
-            # Copy the file
-            shutil.copy2(source_file, dest_file)  # copy2 preserves metadata
+            # Get file size
+            file_size = os.path.getsize(source_file)
+            
+            # For files larger than 1MB, use animated copy
+            if file_size > 1024 * 1024 and progress_callback:
+                self._copy_with_animation(source_file, dest_file, file_size, progress_callback)
+            else:
+                # For small files, use fast copy
+                shutil.copy2(source_file, dest_file)
+            
             return True
             
         except Exception as e:
-            self.log_error(f"Failed to copy file: {source_file} -> {dest_file}: {str(e)}")
+            # Track error silently and show in final report
             self.stats['errors'] += 1
+            self.error_files.append((source_file, str(e)))  # Track error
             return False
+    
+    def _copy_with_animation(self, source_file, dest_file, file_size, progress_callback):
+        """
+        Copy file with progress animation for large files.
+        
+        Args:
+            source_file (str): Source file path
+            dest_file (str): Destination file path
+            file_size (int): Size of file in bytes
+            progress_callback (callable): Callback for animation updates
+        """
+        # Animation frames
+        spinner_frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        frame_index = 0
+        
+        # Copy in chunks with animation
+        chunk_size = 1024 * 1024  # 1MB chunks
+        bytes_copied = 0
+        
+        with open(source_file, 'rb') as fsrc:
+            with open(dest_file, 'wb') as fdst:
+                while True:
+                    chunk = fsrc.read(chunk_size)
+                    if not chunk:
+                        break
+                    
+                    fdst.write(chunk)
+                    bytes_copied += len(chunk)
+                    
+                    # Show animation
+                    frame = spinner_frames[frame_index % len(spinner_frames)]
+                    percent = (bytes_copied / file_size) * 100
+                    progress_callback(frame, percent)
+                    frame_index += 1
+        
+        # Copy metadata (timestamps, permissions)
+        shutil.copystat(source_file, dest_file)
     
     def scan_files(self):
         """
@@ -347,6 +423,11 @@ class BackupManager:
             'to_skip': [],      # Files that are up to date
             'total': 0
         }
+        
+        # Animation frames (Braille spinner)
+        animation_frames = ['⠋', '⠙', '⠹', '⠸', '⠼', '⠴', '⠦', '⠧', '⠇', '⠏']
+        frame_index = 0
+        files_scanned = 0
         
         try:
             print("\n\033[33m Scanning files and analyzing changes...\033[0m")
@@ -366,6 +447,13 @@ class BackupManager:
                     source_file = os.path.join(root, file)
                     dest_file = os.path.join(dest_dir, file)
                     
+                    # Display scanning animation
+                    files_scanned += 1
+                    frame = animation_frames[frame_index % len(animation_frames)]
+                    sys.stdout.write(f'\r\033[36m{frame} Scanning... {files_scanned} files analyzed\033[0m')
+                    sys.stdout.flush()
+                    frame_index += 1
+                    
                     # Determine action based on file comparison
                     action = self.compare_files(source_file, dest_file)
                     
@@ -378,6 +466,10 @@ class BackupManager:
                         scan_results['to_skip'].append((source_file, dest_file))
                     
                     scan_results['total'] += 1
+            
+            # Clear animation line
+            sys.stdout.write('\r\033[K')
+            print(f"\033[32m Scan complete! {files_scanned} files analyzed\033[0m")
             
             return scan_results
             
@@ -443,22 +535,29 @@ class BackupManager:
             self.log_info("=" * 60)
             self.log_info("Starting backup operation...")
             self.log_info("=" * 60)
-            
-            # Calculate total files to process (copy + update)
+                        # Calculate total files to process (copy + update)
             files_to_process = scan_results['to_copy'] + scan_results['to_update']
-            total_files = scan_results['total']
+            total_to_process = len(files_to_process)
             
-            if total_files == 0:
-                self.log_info("No files to backup.")
+            # Set skipped count immediately (no need to process them)
+            self.stats['skipped'] = len(scan_results['to_skip'])
+            
+            if total_to_process == 0:
+                self.log_info("No files need to be copied or updated.")
                 return
             
             # Initialize progress bar (reserve 3 lines)
             print("\n\n")  # Reserve space for progress bar
-            progress = ProgressBar(total_files, prefix='Backup Progress')
+            progress = ProgressBar(total_to_process, prefix='Backup Progress')
+            
+            # Create animation callback for large files
+            def copy_animation_callback(spinner, file_percent):
+                progress.show_copy_animation(current_source_file, spinner, file_percent)
             
             # Process files that need to be copied
             for source_file, dest_file in scan_results['to_copy']:
-                if self.copy_file(source_file, dest_file):
+                current_source_file = source_file  # For callback closure
+                if self.copy_file(source_file, dest_file, copy_animation_callback):
                     self.stats['copied'] += 1
                     progress.update(current_file=source_file, status="COPIED")
                 else:
@@ -466,17 +565,19 @@ class BackupManager:
             
             # Process files that need to be updated
             for source_file, dest_file in scan_results['to_update']:
-                if self.copy_file(source_file, dest_file):
+                current_source_file = source_file  # For callback closure
+                if self.copy_file(source_file, dest_file, copy_animation_callback):
                     self.stats['updated'] += 1
                     progress.update(current_file=source_file, status="UPDATED")
                 else:
                     progress.update(current_file=source_file, status="ERROR")
-            
+            '''
             # Process files that are skipped (just update progress)
             for source_file, dest_file in scan_results['to_skip']:
                 self.stats['skipped'] += 1
                 progress.update(current_file=source_file, status="SKIPPED")
             
+            '''
             # Finish progress bar
             progress.finish()
             
@@ -500,6 +601,15 @@ class BackupManager:
         total = self.stats['copied'] + self.stats['updated'] + self.stats['skipped']
         self.log_info(f"  Total files:   {total}")
         self.log_info("=" * 60)
+        
+        # Display error details if any
+        if self.error_files:
+            print("\n\033[31m ERROR REPORT:\033[0m")
+            print("\033[31m" + "=" * 100 + "\033[0m")
+            for idx, (file_path, error_msg) in enumerate(self.error_files, 1):
+                print(f"\033[31m{idx}. {file_path}\033[0m")
+                print(f"\033[90m   Error: {error_msg}\033[0m")
+            print("\033[31m" + "=" * 100 + "\033[0m\n")
     
     def run(self):
         """
