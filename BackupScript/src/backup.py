@@ -16,6 +16,7 @@ Version: 1.0
 """
 
 import os
+import stat
 import shutil
 import configparser
 from datetime import datetime
@@ -354,6 +355,13 @@ class BackupManager:
             dest_dir = os.path.dirname(dest_file)
             if not os.path.exists(dest_dir):
                 os.makedirs(dest_dir)
+            
+            # If destination file exists and is read-only (e.g. Git pack files),
+            # clear the read-only bit so we can overwrite it.
+            if os.path.exists(dest_file):
+                dest_mode = os.stat(dest_file).st_mode
+                if not (dest_mode & stat.S_IWRITE):
+                    os.chmod(dest_file, dest_mode | stat.S_IWRITE)
             
             # Get file size
             file_size = os.path.getsize(source_file)
