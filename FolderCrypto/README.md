@@ -56,8 +56,11 @@ folder_encryptor/
 │   │   ├── logger.py           # Logging configuration
 │   │   └── helpers.py          # Helper functions
 │   │
-│   └── cli/                    # Command-line interface
-│       └── main.py             # CLI entry point
+│   ├── cli/                    # Command-line interface
+│   │   └── main.py             # CLI entry point
+│   │
+│   └── gui/                    # Graphical user interface
+│       └── main_window.py      # PyQt6 GUI application
 │
 ├── tests/                      # Comprehensive test suite
 │   ├── conftest.py            # Test fixtures
@@ -65,6 +68,9 @@ folder_encryptor/
 │   ├── test_services.py       # Service layer tests
 │   └── test_integration.py    # End-to-end tests
 │
+├── gui.py                     # GUI launcher script
+├── start-gui.bat              # Windows GUI launcher
+├── start-gui.sh               # Linux/Mac GUI launcher
 ├── pyproject.toml             # Project configuration
 ├── requirements.txt           # Production dependencies
 └── README.md                  # This file
@@ -157,6 +163,74 @@ python -m app.cli.main encrypt --help
 # Decrypt command help
 python -m app.cli.main decrypt --help
 ```
+
+### Graphical User Interface (GUI)
+
+FolderCrypto now includes a user-friendly GUI built with PyQt6!
+
+#### Option 1: Using the Standalone Executable (No Python Required)
+
+**Windows:**
+```bash
+# Simply double-click the executable
+dist\FolderCrypto-GUI.exe
+```
+
+The standalone executable includes everything needed - no Python installation required!
+
+To build the executable yourself:
+```bash
+# Windows
+scripts\build-gui.bat
+
+# Linux/Mac
+./scripts/build-gui.sh
+```
+
+See [docs/BUILDING.md](docs/BUILDING.md) for details.
+
+#### Option 2: Running from Python Source
+
+**Windows:**
+```bash
+# Double-click the batch file
+start-gui.bat
+
+# Or run from command line
+python gui.py
+```
+
+**Linux/Mac:**
+```bash
+# Make the script executable (first time only)
+chmod +x start-gui.sh
+
+# Run the GUI
+./start-gui.sh
+
+# Or run directly
+python3 gui.py
+```
+
+#### GUI Features
+
+-  **Tab-based interface** - Separate tabs for encryption and decryption
+-  **Visual folder selection** - Browse and select folders with file dialogs
+-  **Password visibility toggle** - Show/hide password as needed
+-  **Real-time progress tracking** - Progress bar with current file display
+-  **Operation logging** - Live log output for all operations
+-  **Argon2 support** - Checkbox to enable Argon2id key derivation
+-  **Input validation** - Automatic checks for valid inputs
+-  **Error handling** - Clear error messages with troubleshooting hints
+-  **Modern UI** - Clean, professional interface with Fusion style
+
+#### GUI Screenshots
+
+The GUI provides:
+1. **Encrypt Tab** - Select source folder, destination, enter password, and encrypt
+2. **Decrypt Tab** - Select encrypted folder, destination, enter password, and decrypt
+3. **Progress Tracking** - Real-time progress bar showing current file and completion percentage
+4. **Log Output** - Detailed logging of all operations for troubleshooting
 
 ### Programmatic Usage
 
@@ -411,6 +485,23 @@ Contributions are welcome! Please follow these guidelines:
 7. Commit changes (`git commit -m 'Add amazing feature'`)
 8. Push to branch (`git push origin feature/amazing-feature`)
 9. Open a Pull Request
+
+##  Documentation
+
+### Quick Start
+- **[QUICKSTART.md](docs/QUICKSTART.md)** - Get started in 5 minutes
+- **[dist/README.txt](dist/README.txt)** - GUI executable user guide
+
+### Detailed Guides
+- **[GUI.md](docs/GUI.md)** - Complete GUI documentation
+- **[BUILDING.md](docs/BUILDING.md)** - Build executables guide
+- **[ARCHITECTURE.md](docs/ARCHITECTURE.md)** - System architecture
+- **[VISUALIZATION.md](docs/VISUALIZATION.md)** - Project diagrams
+
+### Build Information
+- **[BUILD_SUCCESS.md](BUILD_SUCCESS.md)** - Latest build summary
+- **[folder-crypto-gui.spec](folder-crypto-gui.spec)** - GUI build configuration
+- **[folder-encryptor.spec](folder-encryptor.spec)** - CLI build configuration
 
 ##  License
 

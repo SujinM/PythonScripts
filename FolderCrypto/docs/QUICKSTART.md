@@ -1,5 +1,89 @@
 # Quick Start Guide
 
+## Option 1: Standalone Executable (Easiest - No Python Required!)
+
+### For Windows Users
+
+1. **Download or Build**
+   - If you have the `FolderCrypto-GUI.exe`, skip to step 2
+   - To build it yourself: run `scripts\build-gui.bat`
+
+2. **Run the Application**
+   ```bash
+   # Just double-click
+   dist\FolderCrypto-GUI.exe
+   ```
+
+3. **Encrypt Your Files**
+   - Click "Encrypt" tab
+   - Browse to select your folder
+   - Choose output location
+   - Enter a strong password
+   - Click "Encrypt Folder"
+
+4. **Decrypt When Needed**
+   - Click "Decrypt" tab
+   - Select the encrypted folder
+   - Choose restore location
+   - Enter the same password
+   - Click "Decrypt Folder"
+
+**That's it!** No Python, no dependencies, just works!
+
+---
+
+## Option 2: Graphical User Interface (Recommended for Beginners)
+
+### 1. Install Dependencies
+
+```bash
+cd /path/to/FolderCrypto
+python3.12 -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+```
+
+### 2. Launch the GUI
+
+**Windows:**
+```bash
+start-gui.bat
+```
+
+**Linux/Mac:**
+```bash
+chmod +x start-gui.sh
+./start-gui.sh
+```
+
+**Or directly:**
+```bash
+python gui.py
+```
+
+### 3. Use the GUI
+
+1. **Encrypt a Folder:**
+   - Click the "Encrypt" tab
+   - Click "Browse..." next to Input Folder and select your folder
+   - Click "Browse..." next to Output Folder and choose destination
+   - Enter a strong password
+   - (Optional) Check "Use Argon2" for extra security
+   - Click "Encrypt Folder"
+
+2. **Decrypt a Folder:**
+   - Click the "Decrypt" tab
+   - Select the encrypted folder as input
+   - Choose where to restore files
+   - Enter the same password used for encryption
+   - Click "Decrypt Folder"
+
+The GUI shows real-time progress and logs all operations!
+
+---
+
+## Option 2: Command Line Interface
+
 ## 5-Minute Setup
 
 ### 1. Install Dependencies

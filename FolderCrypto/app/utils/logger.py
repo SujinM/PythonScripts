@@ -59,21 +59,25 @@ def setup_logging(
     # Remove existing handlers
     root_logger.handlers.clear()
 
-    # Console handler
-    console_handler = logging.StreamHandler(sys.stdout)
-    console_handler.setLevel(log_level)
+    # Console handler (only if stdout is available - not in GUI mode)
+    if sys.stdout is not None:
+        console_handler = logging.StreamHandler(sys.stdout)
+        console_handler.setLevel(log_level)
 
-    if colored and sys.stdout.isatty():
-        console_format = "%(levelname)s | %(message)s"
-        console_formatter = ColoredFormatter(console_format)
-    else:
-        console_format = "%(asctime)s | %(levelname)s | %(message)s"
-        console_formatter = logging.Formatter(
-            console_format, datefmt="%Y-%m-%d %H:%M:%S"
-        )
+        # Check if stdout supports isatty (terminal mode)
+        is_tty = hasattr(sys.stdout, 'isatty') and sys.stdout.isatty()
+        
+        if colored and is_tty:
+            console_format = "%(levelname)s | %(message)s"
+            console_formatter = ColoredFormatter(console_format)
+        else:
+            console_format = "%(asctime)s | %(levelname)s | %(message)s"
+            console_formatter = logging.Formatter(
+                console_format, datefmt="%Y-%m-%d %H:%M:%S"
+            )
 
-    console_handler.setFormatter(console_formatter)
-    root_logger.addHandler(console_handler)
+        console_handler.setFormatter(console_formatter)
+        root_logger.addHandler(console_handler)
 
     # File handler (if specified)
     if log_file:
