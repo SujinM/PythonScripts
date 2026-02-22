@@ -1,0 +1,49 @@
+# Folder Encryptor Configuration File
+# This file will be automatically created in ~/.folder-encryptor/config.ini if not found
+
+[Folders]
+# Default input folder (leave empty for no default)
+default_input = 
+
+# Default output folder (leave empty for no default)
+default_output = 
+
+# Last used input folder (automatically updated)
+last_input = 
+
+# Last used output folder (automatically updated)
+last_output = 
+
+
+[Security]
+# Use Argon2id for key derivation instead of PBKDF2 (requires argon2-cffi)
+# Options: true, false
+use_argon2 = false
+
+# Verify password strength before encryption
+# Options: true, false
+verify_password_strength = true
+
+# Minimum password length for strength verification
+min_password_length = 12
+
+
+[UI]
+# Show progress bar during operations
+# Options: true, false
+show_progress = true
+
+# Verbose output (detailed logging)
+# Options: true, false
+verbose = false
+
+# Confirm before overwriting existing files
+# Options: true, false
+confirm_overwrite = true
+
+
+[Performance]
+# Chunk size for file processing (in bytes)
+# Default: 65536 (64 KB)
+# Larger values may improve performance for large files
+chunk_size = 65536
