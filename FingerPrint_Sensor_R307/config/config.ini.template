@@ -1,0 +1,17 @@
+# Sample configuration file for R307 Fingerprint Sensor
+# Copy this file to ~/.fingerprint_config.ini and modify as needed
+
+# Enrolled users will be automatically added to this file
+# Format:
+# [position_number]
+# Name = user_id
+# Enrolled = True
+
+# Example:
+# [0]
+# Name = JohnDoe
+# Enrolled = True
+#
+# [1]
+# Name = JaneSmith
+# Enrolled = True
