@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    plc_config.xml
+    Central configuration for the TwinCAT 3 PLC ADS connection and the PLC
+    variables that should be monitored / controlled.
+
+    Connection
+    AMSNetID   : AMS Net ID of the target PLC runtime (format: x.x.x.x.x.x).
+    IPAddress  : IPv4 address of the TwinCAT host.
+    Port       : ADS port of the PLC runtime (usually 851 for TC3 runtime 1).
+
+    Variables
+    Each Variable element represents a symbolic PLC variable.
+    Name       : Full symbolic path as seen in the PLC runtime (e.g. MAIN.bMotorOn).
+    Type       : PLC data type.  Supported values:
+                     BOOL | INT | DINT | UDINT | REAL | LREAL | STRING | ARRAY
+
+    Reconnect
+    MaxAttempts          : Maximum number of sequential reconnect tries before
+                           raising PLCReconnectExhaustedError (0 = unlimited).
+    InitialDelaySeconds  : Seconds to wait before the first retry.
+    BackoffMultiplier    : Multiplier applied to the delay after each failed attempt
+                           (exponential back-off).
+    MaxDelaySeconds      : Upper bound on the delay between retries.
+
+    Notifications
+    CycleTimeMs          : ADS notification cycle time in milliseconds.
+    MaxDelayMs           : Maximum additional delay (ms) the ADS server may buffer
+                           notifications before delivering them.
+
+    Heartbeat
+    IntervalSeconds      : How often (seconds) the watchdog checks whether the
+                           connection is still alive.
+-->
+<PLCConfig>
+
+    <Connection>
+        <AMSNetID>5.1.204.160.1.1</AMSNetID>
+        <IPAddress>192.168.0.100</IPAddress>
+        <Port>851</Port>
+    </Connection>
+
+    <Reconnect>
+        <MaxAttempts>10</MaxAttempts>
+        <InitialDelaySeconds>1.0</InitialDelaySeconds>
+        <BackoffMultiplier>2.0</BackoffMultiplier>
+        <MaxDelaySeconds>60.0</MaxDelaySeconds>
+    </Reconnect>
+
+    <Notifications>
+        <CycleTimeMs>100</CycleTimeMs>
+        <MaxDelayMs>200</MaxDelayMs>
+    </Notifications>
+
+    <Heartbeat>
+        <IntervalSeconds>5</IntervalSeconds>
+    </Heartbeat>
+
+    <Variables>
+
+        <Variable>
+            <Name>MAIN.bMotorOn</Name>
+            <Type>BOOL</Type>
+            <Description>Motor enable flag</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nSpeed</Name>
+            <Type>INT</Type>
+            <Description>Motor speed setpoint (RPM)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.rTemperature</Name>
+            <Type>REAL</Type>
+            <Description>Process temperature (deg C)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.lrPower</Name>
+            <Type>LREAL</Type>
+            <Description>Measured power consumption (kW)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nCounter</Name>
+            <Type>DINT</Type>
+            <Description>Cycle counter</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.sStatus</Name>
+            <Type>STRING</Type>
+            <Description>System status message</Description>
+        </Variable>
+
+    </Variables>
+
+</PLCConfig>

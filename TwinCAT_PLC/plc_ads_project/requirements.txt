@@ -1,0 +1,11 @@
+# ---------------------------------------------------------------------------
+# Runtime dependencies
+# ---------------------------------------------------------------------------
+pyads>=3.0.0             # ADS communication with TwinCAT 3 PLCs (latest: 3.5.x)
+
+# ---------------------------------------------------------------------------
+# Test dependencies  (install with: pip install -r requirements-dev.txt)
+# ---------------------------------------------------------------------------
+# Listed here for convenience; pin versions in a lock file for reproducibility.
+pytest>=8.0.0
+pytest-cov>=5.0.0
