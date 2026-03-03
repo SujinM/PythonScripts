@@ -1,0 +1,25 @@
+# ---------------------------------------------------------------------------
+# plc_gui_project – runtime dependencies
+# ---------------------------------------------------------------------------
+
+# GUI framework
+PyQt6>=6.6.0
+
+# PLC ADS communication (must match version used in plc_ads_project)
+pyads>=3.0.0
+
+# Indirect runtime deps already pulled by pyads / PyQt6 – listed for clarity:
+# ctypes  – stdlib
+# xml     – stdlib
+# threading – stdlib
+
+# ---------------------------------------------------------------------------
+# Development / packaging dependencies
+# ---------------------------------------------------------------------------
+
+# Unit-test runner
+pytest>=8.0.0
+pytest-qt>=4.4.0          # PyQt fixtures + helpers for pytest
+
+# Windows installer builder  (run: python setup.py build  or  python setup.py bdist_msi)
+cx_Freeze>=7.0.0

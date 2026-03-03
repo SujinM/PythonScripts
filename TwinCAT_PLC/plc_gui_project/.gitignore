@@ -1,0 +1,46 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+
+# Virtual environments
+.venv/
+venv/
+ENV/
+env/
+
+# cx_Freeze build artifacts
+build/
+dist/
+*.egg-info/
+
+# IDEs
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Qt
+*.qm
+*.pro.user
+
+# Logs
+*.log
+
+# Settings (may contain sensitive paths)
+*.ini
+!pytest.ini
+!setup.cfg
+
+# Temporary files
+*.tmp
+*.bak
+*.cache
