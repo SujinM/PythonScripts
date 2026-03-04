@@ -150,7 +150,13 @@ INCLUDE_FILES: list[tuple[str, str]] = [
 # Add icons directory if it exists.
 icons_dir = RESOURCES_DIR / "icons"
 if icons_dir.exists():
-    INCLUDE_FILES.append((str(icons_dir), "resources/icons"))
+    # Include all icon files if they exist
+    for icon_file in icons_dir.glob("*.ico"):
+        INCLUDE_FILES.append((str(icon_file), f"resources/icons/{icon_file.name}"))
+    for icon_file in icons_dir.glob("*.png"):
+        INCLUDE_FILES.append((str(icon_file), f"resources/icons/{icon_file.name}"))
+    for icon_file in icons_dir.glob("*.svg"):
+        INCLUDE_FILES.append((str(icon_file), f"resources/icons/{icon_file.name}"))
 
 BUILD_OPTIONS: dict = {
     # sys.path additions for dynamic imports from the sibling ADS project.
@@ -180,12 +186,16 @@ BUILD_OPTIONS: dict = {
 # cx_Freeze 7.x uses "gui" / "console" instead of the legacy "Win32GUI" / "Win32Console".
 BASE = "gui" if sys.platform == "win32" else None   # suppress console window
 
+# Check if app icon exists
+app_icon_path = RESOURCES_DIR / "icons" / "app.ico"
+app_icon = str(app_icon_path) if app_icon_path.exists() else None
+
 EXECUTABLES: list[Executable] = [
     Executable(
         script=MAIN_SCRIPT,
         base=BASE,
         target_name=f"{APP_NAME}.exe",
-        # icon=str(RESOURCES_DIR / "icons" / "app.ico"),  # uncomment when you have an .ico
+        icon=app_icon,  # Uses app.ico if it exists, otherwise default icon
         copyright=f"Copyright © 2026 {APP_AUTHOR}",
         shortcut_name=APP_NAME,
         shortcut_dir="DesktopFolder",   # create desktop shortcut

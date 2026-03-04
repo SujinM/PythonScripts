@@ -11,22 +11,37 @@ Import pattern::
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+
+def _get_root_dir() -> Path:
+    """
+    Get the application root directory.
+    
+    When running as a frozen executable (cx_Freeze), the root is the
+    directory containing the .exe. When running from source, it's
+    the plc_gui_project/ directory.
+    """
+    if getattr(sys, 'frozen', False):
+        # Running as compiled executable - resources are relative to exe
+        return Path(sys.executable).parent
+    else:
+        # Running in development - resources are relative to this file
+        # plc_gui_project/src/plc_gui/constants.py -> plc_gui_project/
+        return Path(__file__).resolve().parent.parent.parent
+
 
 # ---------------------------------------------------------------------------
 # Filesystem paths
 # ---------------------------------------------------------------------------
-#   plc_gui_project/
-#   └── src/
-#       └── plc_gui/
-#           └── constants.py     ← this file
-ROOT_DIR: Path = Path(__file__).resolve().parent.parent.parent   # plc_gui_project/
+ROOT_DIR: Path = _get_root_dir()
 SRC_DIR: Path = ROOT_DIR / "src"
 RESOURCES_DIR: Path = ROOT_DIR / "resources"
 STYLES_DIR: Path = RESOURCES_DIR / "styles"
 ICONS_DIR: Path = RESOURCES_DIR / "icons"
 
-# Sibling plc_ads_project that provides the backend services
+# Sibling plc_ads_project that provides the backend services (dev only)
 ADS_BACKEND_DIR: Path = ROOT_DIR.parent / "plc_ads_project"
 
 # ---------------------------------------------------------------------------

@@ -96,8 +96,16 @@ class StyleManager:
     def _load_qss(path: Path) -> str:
         """Read a QSS file and return its content, or empty string on error."""
         try:
-            return path.read_text(encoding="utf-8")
+            with open(path, "r", encoding="utf-8") as f:
+                content = f.read()
+            return content
         except FileNotFoundError:
+            import logging
+            logging.error(f"QSS theme file not found: {path}")
+            logging.error(f"  Searched in: {path.parent}")
+            logging.error(f"  Files in parent: {list(path.parent.glob('*')) if path.parent.exists() else 'directory does not exist'}")
             return ""
-        except OSError:
+        except OSError as e:
+            import logging
+            logging.error(f"Failed to read QSS theme file {path}: {e}")
             return ""

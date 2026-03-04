@@ -1,0 +1,220 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    tone_config.xml
+    ───────────────
+    TwinCAT 3 ADS configuration for the TONHE Charging Module HMI.
+
+    Connection
+      AMSNetID  : AMS Net ID of the TwinCAT runtime running ThoneModuleTest.
+      IPAddress : IPv4 address of the TwinCAT host PC.
+      Port      : ADS port of PLC runtime 1 (default 851).
+
+    Variables map directly to MAIN / GVL symbols in ThoneModuleTest.plcproj.
+    Types supported: BOOL | BYTE | INT | UINT | DINT | UDINT | REAL | STRING
+-->
+<PLCConfig>
+
+    <Connection>
+        <AMSNetID>5.1.204.160.1.1</AMSNetID>
+        <IPAddress>192.168.0.100</IPAddress>
+        <Port>851</Port>
+    </Connection>
+
+    <Reconnect>
+        <MaxAttempts>10</MaxAttempts>
+        <InitialDelaySeconds>1.0</InitialDelaySeconds>
+        <BackoffMultiplier>2.0</BackoffMultiplier>
+        <MaxDelaySeconds>60.0</MaxDelaySeconds>
+    </Reconnect>
+
+    <Notifications>
+        <CycleTimeMs>100</CycleTimeMs>
+        <MaxDelayMs>200</MaxDelayMs>
+    </Notifications>
+
+    <Heartbeat>
+        <IntervalSeconds>5</IntervalSeconds>
+    </Heartbeat>
+
+    <Variables>
+
+        <!-- ══════════════════════════════════════
+             GVL — Module Status (read-only uplink)
+             ══════════════════════════════════════ -->
+        <Variable>
+            <Name>GVL.nModuleStatus</Name>
+            <Type>BYTE</Type>
+            <Description>Module status byte: 0x00=OFF, 0x01=ON, 0x11=Fault</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nModuleVoltage</Name>
+            <Type>REAL</Type>
+            <Description>Output voltage (V) – already scaled from 0.1 V/bit</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nModuleCurrent</Name>
+            <Type>REAL</Type>
+            <Description>Output current (A) – already scaled from 0.01 A/bit</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.wModuleFaults</Name>
+            <Type>UINT</Type>
+            <Description>Fault / Warning bit-field (WORD mapped to UINT)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nModulePfcFaults</Name>
+            <Type>BYTE</Type>
+            <Description>PFC fault status byte</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.bModuleFault</Name>
+            <Type>BOOL</Type>
+            <Description>Global fault flag (set by ProcessRxMessage / M_C_4)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.bModuleStatusReceived</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE when a fresh M_C_1 status frame has been received</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.bAckReceived</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE when M_C_2 acknowledgment frame has been received</Description>
+        </Variable>
+
+        <!-- Phase / AC-input information (M_C_3) -->
+        <Variable>
+            <Name>GVL.nPhaseVoltageA</Name>
+            <Type>REAL</Type>
+            <Description>AC input A-phase voltage (V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nPhaseVoltageB</Name>
+            <Type>REAL</Type>
+            <Description>AC input B-phase voltage (V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nPhaseVoltageC</Name>
+            <Type>REAL</Type>
+            <Description>AC input C-phase voltage (V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nAmbientTemperature</Name>
+            <Type>INT</Type>
+            <Description>Ambient temperature inside module (°C)</Description>
+        </Variable>
+
+        <!-- Extended status / fault (M_C_4) -->
+        <Variable>
+            <Name>GVL.wModuleStatusBits</Name>
+            <Type>UINT</Type>
+            <Description>Detailed module status bit-field (bytes 1-2 of M_C_4)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.wModuleExtFaultWarningBits</Name>
+            <Type>UINT</Type>
+            <Description>Extended fault / warning bit-field (bytes 3-4 of M_C_4)</Description>
+        </Variable>
+
+        <!-- Diagnostics -->
+        <Variable>
+            <Name>GVL.nRxFrameCount</Name>
+            <Type>UDINT</Type>
+            <Description>Total CAN frames received since PLC start</Description>
+        </Variable>
+
+        <Variable>
+            <Name>GVL.nLastRxCobId</Name>
+            <Type>UDINT</Type>
+            <Description>CAN ID (COB-ID) of the last received frame</Description>
+        </Variable>
+
+        <!-- ══════════════════════════════════
+             MAIN — Control (read / write)
+             ══════════════════════════════════ -->
+        <Variable>
+            <Name>MAIN.bStartModule</Name>
+            <Type>BOOL</Type>
+            <Description>Write TRUE to command module start (C_M_24 = 0xAA)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.bStopModule</Name>
+            <Type>BOOL</Type>
+            <Description>Write TRUE to command module stop (C_M_24 = 0x55)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.bClearFault</Name>
+            <Type>BOOL</Type>
+            <Description>Write TRUE to clear fault flags and reset state machine</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.bModuleRunning</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE while state machine is in RUNNING state</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.sStatusText</Name>
+            <Type>STRING</Type>
+            <Description>Human-readable state machine status message</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nTargetVoltage</Name>
+            <Type>UINT</Type>
+            <Description>Voltage setpoint (0.1 V/bit, e.g. 5000 = 500.0 V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nTargetCurrent</Name>
+            <Type>UINT</Type>
+            <Description>Current setpoint (0.01 A/bit, e.g. 4100 = 41.00 A)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.bUpdateVI</Name>
+            <Type>BOOL</Type>
+            <Description>Write TRUE to push nTargetVoltage/nTargetCurrent to module</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nModuleAddress</Name>
+            <Type>BYTE</Type>
+            <Description>Target module CAN address (1–240)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nMasterAddress</Name>
+            <Type>BYTE</Type>
+            <Description>Master controller address (fixed 0xA0 per TONHE protocol)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nRetryCount</Name>
+            <Type>UINT</Type>
+            <Description>Current retry counter for start/stop acknowledgment</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.nMaxRetries</Name>
+            <Type>UINT</Type>
+            <Description>Maximum permitted retries before transitioning to FAULT</Description>
+        </Variable>
+
+    </Variables>
+
+</PLCConfig>

@@ -36,9 +36,17 @@ from pathlib import Path
 # works whether the app is run from the repo root OR from a frozen bundle.
 # ---------------------------------------------------------------------------
 def _bootstrap_path() -> None:
-    src_dir = Path(__file__).resolve().parent / "src"
-    if str(src_dir) not in sys.path:
-        sys.path.insert(0, str(src_dir))
+    """
+    Add src/ to sys.path when running from source.
+    
+    When frozen by cx_Freeze, the packages are already in sys.path
+    via library.zip, so no adjustment is needed.
+    """
+    if not getattr(sys, 'frozen', False):
+        # Running from source - add src/ to path
+        src_dir = Path(__file__).resolve().parent / "src"
+        if str(src_dir) not in sys.path:
+            sys.path.insert(0, str(src_dir))
 
 
 _bootstrap_path()

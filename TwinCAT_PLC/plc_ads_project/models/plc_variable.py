@@ -46,7 +46,9 @@ log = get_logger(__name__)
 # Maps PLC type string → tuple of acceptable Python types (passed to isinstance).
 _PLC_PYTHON_TYPE_MAP: dict[str, tuple[type, ...]] = {
     "BOOL":   (bool, int),
+    "BYTE":   (int,),
     "INT":    (int,),
+    "UINT":   (int,),
     "DINT":   (int,),
     "UDINT":  (int,),
     "REAL":   (float, int),

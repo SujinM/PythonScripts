@@ -39,7 +39,7 @@ log = get_logger(__name__)
 # Supported PLC data types (validated on load)
 # ---------------------------------------------------------------------------
 SUPPORTED_TYPES: Final[frozenset[str]] = frozenset(
-    {"BOOL", "INT", "DINT", "UDINT", "REAL", "LREAL", "STRING", "ARRAY"}
+    {"BOOL", "BYTE", "INT", "UINT", "DINT", "UDINT", "REAL", "LREAL", "STRING", "ARRAY"}
 )
 
 # Default values used when optional XML elements are absent.
