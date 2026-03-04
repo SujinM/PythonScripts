@@ -168,35 +168,6 @@ try:
 except ImportError:
     pass
 
-# ---------------------------------------------------------------------------
-# Python runtime DLL  (critical fix for venv builds with cx_Freeze 7.x)
-# ---------------------------------------------------------------------------
-# When building inside a venv, python3xx.dll lives in the *base* Python
-# installation (e.g. C:\Python314\), NOT in the venv.  cx_Freeze 7.x puts
-# extension modules and the Python DLL inside an "_internal\" sub-folder of
-# the build tree, so we must copy the DLL there explicitly or the exe will
-# fail at launch with "Failed to load Python DLL … The specified module could
-# not be found."
-_py_ver     = f"{sys.version_info.major}{sys.version_info.minor}"
-_py_dll_name = f"python{_py_ver}.dll"
-
-# Search order: base_prefix (canonical for venvs), then prefix, then exe dir
-_py_dll_candidates = [
-    Path(sys.base_prefix)        / _py_dll_name,
-    Path(sys.prefix)             / _py_dll_name,
-    Path(sys.executable).parent  / _py_dll_name,
-]
-_py_dll_found = next((p for p in _py_dll_candidates if p.exists()), None)
-if _py_dll_found:
-    # Destination: _internal/ is where cx_Freeze 7.x bootstraps the runtime
-    INCLUDE_FILES.append((str(_py_dll_found), f"_internal/{_py_dll_name}"))
-else:
-    import warnings
-    warnings.warn(
-        f"Could not locate {_py_dll_name} – the built exe may fail to start. "
-        f"Searched: {[str(p) for p in _py_dll_candidates]}"
-    )
-
 
 #: These generate "Missing dependencies" warnings from cx_Freeze because PyQt6
 #: ships the full Qt installation (including QML, 3D, SQL drivers) even though
