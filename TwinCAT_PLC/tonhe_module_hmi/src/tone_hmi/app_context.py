@@ -14,8 +14,12 @@ from tone_hmi.constants import ADS_BACKEND_DIR
 
 
 def _ensure_ads_on_path() -> None:
+    # In a cx_Freeze build the ADS packages are already bundled as Python
+    # packages; ADS_BACKEND_DIR does not exist on disk and sys.path injection
+    # is not needed.  In a source-tree run the sibling directory is added so
+    # the dynamic imports (config.*, core.*, etc.) resolve correctly.
     ads_path = str(ADS_BACKEND_DIR)
-    if ads_path not in sys.path:
+    if ADS_BACKEND_DIR.exists() and ads_path not in sys.path:
         sys.path.insert(0, ads_path)
 
 

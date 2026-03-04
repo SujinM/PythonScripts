@@ -11,9 +11,13 @@ from pathlib import Path
 
 
 def _get_root_dir() -> Path:
+    # PyInstaller onefile/onedir: _MEIPASS is the extraction directory
+    if hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)
+    # cx_Freeze and PyInstaller onedir: exe sits at the bundle root
     if getattr(sys, "frozen", False):
         return Path(sys.executable).parent
-    # tonhe_module_hmi/src/tone_hmi/constants.py  →  tonhe_module_hmi/
+    # Running from source: tonhe_module_hmi/src/tone_hmi/constants.py → tonhe_module_hmi/
     return Path(__file__).resolve().parent.parent.parent
 
 

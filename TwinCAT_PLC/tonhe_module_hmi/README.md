@@ -29,6 +29,12 @@ pyqtgraph ≥ 0.13  (future graph panel)
 # From the tonhe_module_hmi/ folder:
 pip install -r requirements.txt
 python app.py
+
+# Build
+scripts\build_cx.bat              # build exe tree
+scripts\build_cx.bat clean        # clean build exe tree
+scripts\build_cx.bat msi          # exe + MSI installer
+scripts\build_cx.bat clean msi    # clean rebuild + MSI
 ```
 
 1. Choose **File → Open Config…** and select `config/tone_config.xml`  
