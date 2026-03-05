@@ -30,6 +30,9 @@ pyqtgraph ≥ 0.13  (future graph panel)
 pip install -r requirements.txt
 python app.py
 
+# MOCK ADS
+MOCK_ADS=1 python app.py
+
 # Build
 scripts\build_cx.bat              # build exe tree
 scripts\build_cx.bat clean        # clean build exe tree

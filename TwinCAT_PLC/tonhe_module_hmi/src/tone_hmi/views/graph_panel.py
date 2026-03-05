@@ -66,17 +66,35 @@ class GraphPanel(QWidget):
 
         # ── pyqtgraph setup ───────────────────────────────────────────────────
         pg.setConfigOptions(antialias=True)
+        # Apply dark theme configuration
+        pg.setConfigOption('background', '#1e1e1e')
+        pg.setConfigOption('foreground', '#d4d4d4')
+        
         self._gw = pg.GraphicsLayoutWidget(parent=self)
         self._gw.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        # Add internal padding
+        self._gw.ci.layout.setContentsMargins(10, 10, 10, 10)
+
+        # Common axis styling function
+        def style_plot(plot: pg.PlotItem):
+            plot.showGrid(x=True, y=True, alpha=0.15)
+            plot.setMouseEnabled(x=True, y=False)  # Allow X panning, but fix Y auto-scaling behavior
+            plot.enableAutoRange(y=True)
+            plot.setLimits(yMin=0)  # Y-axis always starts at 0
+            plot.setLimits(xMin=0)  # X-axis always starts at 0 
+            
+            # Style axis lines
+            for axis_name in ['left', 'bottom']:
+                axis = plot.getAxis(axis_name)
+                axis.setPen(pg.mkPen(color="#555555", width=1))
+                axis.setTextPen(pg.mkPen(color="#aaaaaa"))
 
         # Voltage plot (top)
         self._v_plot: pg.PlotItem = self._gw.addPlot(row=0, col=0)
         self._v_plot.setLabel("left", "Voltage", units="V")
-        self._v_plot.showGrid(x=True, y=True, alpha=0.25)
-        self._v_plot.setMouseEnabled(x=True, y=True)
-        self._v_plot.enableAutoRange(y=True)
+        style_plot(self._v_plot)
         self._v_curve = self._v_plot.plot(
-            pen=pg.mkPen(color="#27ae60", width=2),
+            pen=pg.mkPen(color="#2ecc71", width=2.5),
             name="Voltage",
         )
 
@@ -84,16 +102,14 @@ class GraphPanel(QWidget):
         self._a_plot: pg.PlotItem = self._gw.addPlot(row=1, col=0)
         self._a_plot.setLabel("left", "Current", units="A")
         self._a_plot.setLabel("bottom", "Elapsed time", units="s")
-        self._a_plot.showGrid(x=True, y=True, alpha=0.25)
-        self._a_plot.setMouseEnabled(x=True, y=True)
-        self._a_plot.enableAutoRange(y=True)
+        style_plot(self._a_plot)
         self._a_plot.setXLink(self._v_plot)
         self._a_curve = self._a_plot.plot(
-            pen=pg.mkPen(color="#3498db", width=2),
+            pen=pg.mkPen(color="#3498db", width=2.5),
             name="Current",
         )
 
-        self._gw.ci.layout.setSpacing(4)
+        self._gw.ci.layout.setSpacing(15)
         self._gw.ci.layout.setRowStretchFactor(0, 1)
         self._gw.ci.layout.setRowStretchFactor(1, 1)
 
@@ -197,3 +213,14 @@ class GraphPanel(QWidget):
             x_max = t_arr[-1]
             x_min = x_max - self._window_s
             self._v_plot.setXRange(x_min, x_max, padding=0.02)
+            
+        # Force Y-axis to bound between 0 and the max data value (plus a 5% margin)
+        if v_arr:
+            v_max = max(v_arr)
+            v_limit = v_max * 1.05 if v_max > 0 else 10.0
+            self._v_plot.setYRange(0, v_limit, padding=0.0)
+            
+        if a_arr:
+            a_max = max(a_arr)
+            a_limit = a_max * 1.05 if a_max > 0 else 10.0
+            self._a_plot.setYRange(0, a_limit, padding=0.0)

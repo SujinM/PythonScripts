@@ -55,13 +55,20 @@ class AppContext:
         self.registry = VariableRegistry()
         self.registry.load_from_config(self.config)
 
-        self.connection_manager = ConnectionManager(
-            self.config.connection,
-            self.config.reconnect,
-            self.config.heartbeat,
-        )
+        import os
+        if os.environ.get("MOCK_ADS") == "1":
+            from tone_hmi.mock_ads import MockADSConnectionManager, MockADSClient
+            self.connection_manager = MockADSConnectionManager()
+            self.ads_client = MockADSClient(self.connection_manager)
+            print("Running with MOCK ADS Client")
+        else:
+            self.connection_manager = ConnectionManager(
+                self.config.connection,
+                self.config.reconnect,
+                self.config.heartbeat,
+            )
+            self.ads_client = ADSClient(self.connection_manager)
 
-        self.ads_client = ADSClient(self.connection_manager)
         self.read_service = PLCReadService(self.ads_client, self.registry)
         self.write_service = PLCWriteService(self.ads_client, self.registry)
 
