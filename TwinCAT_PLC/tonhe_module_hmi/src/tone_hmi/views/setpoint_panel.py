@@ -12,9 +12,8 @@ from __future__ import annotations
 from PyQt6.QtCore import pyqtSignal
 from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
-    QFormLayout,
+    QGridLayout,
     QGroupBox,
-    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -64,6 +63,7 @@ class SetpointPanel(QGroupBox):
 
         self._btn_apply = QPushButton("⬆  Apply")
         self._btn_apply.setObjectName("btnApplySetpoint")
+        self._btn_apply.setFixedHeight(28)
         self._btn_apply.setToolTip(
             "Write new voltage/current setpoints and pulse bUpdateVI"
         )
@@ -78,32 +78,28 @@ class SetpointPanel(QGroupBox):
     # ── Layout ────────────────────────────────────────────────────────────────
 
     def _build_layout(self) -> None:
-        form = QFormLayout()
-        form.setSpacing(8)
+        # Two-row grid: label | input | unit | live readback
+        # This halves the vertical height compared to 4 separate form rows.
+        grid = QGridLayout()
+        grid.setSpacing(4)
+        grid.setContentsMargins(0, 0, 0, 0)
+        grid.setColumnStretch(3, 1)   # live-value column takes remaining space
 
-        volt_row = QHBoxLayout()
-        volt_row.addWidget(self._volt_edit)
-        volt_row.addWidget(QLabel("V"))
+        grid.addWidget(QLabel("Voltage:"), 0, 0)
+        grid.addWidget(self._volt_edit, 0, 1)
+        grid.addWidget(QLabel("V"), 0, 2)
+        grid.addWidget(self._volt_live, 0, 3)
 
-        curr_row = QHBoxLayout()
-        curr_row.addWidget(self._curr_edit)
-        curr_row.addWidget(QLabel("A"))
-
-        form.addRow("Target Voltage:", self._make_widget(volt_row))
-        form.addRow("Target Current:", self._make_widget(curr_row))
-        form.addRow("Live Voltage:", self._volt_live)
-        form.addRow("Live Current:", self._curr_live)
+        grid.addWidget(QLabel("Current:"), 1, 0)
+        grid.addWidget(self._curr_edit, 1, 1)
+        grid.addWidget(QLabel("A"), 1, 2)
+        grid.addWidget(self._curr_live, 1, 3)
 
         vbox = QVBoxLayout(self)
-        vbox.addLayout(form)
+        vbox.setSpacing(4)
+        vbox.setContentsMargins(8, 6, 8, 6)
+        vbox.addLayout(grid)
         vbox.addWidget(self._btn_apply)
-        vbox.addStretch()
-
-    @staticmethod
-    def _make_widget(layout: QHBoxLayout) -> QWidget:
-        w = QWidget()
-        w.setLayout(layout)
-        return w
 
     # ── Public API ────────────────────────────────────────────────────────────
 

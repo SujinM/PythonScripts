@@ -156,7 +156,31 @@ QScrollBar:horizontal { background: #f0f2f5; height: 10px; border-radius: 5px; }
 QScrollBar::handle:horizontal { background: #bdc3c7; border-radius: 5px; min-width: 20px; }
 QScrollBar::handle:horizontal:hover { background: #85929e; }
 QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal { width: 0; }
-
+/* ── View-switcher tab buttons ───────────────────────────────────────── */
+QPushButton#tabBtnGraph,
+QPushButton#tabBtnDetails {
+    background-color: #eaf0f6;
+    border: 1px solid #bdc3c7;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    color: #7f8c8d;
+    padding: 3px 18px;
+    font-weight: 500;
+    min-width: 90px;
+}
+QPushButton#tabBtnGraph:hover,
+QPushButton#tabBtnDetails:hover {
+    background-color: #d6e4f0;
+    color: #2c3e50;
+}
+QPushButton#tabBtnGraph:checked,
+QPushButton#tabBtnDetails:checked {
+    background-color: #ffffff;
+    border-color: #2980b9;
+    border-bottom: 2px solid #2980b9;
+    color: #1a5276;
+    font-weight: bold;
+}
 /* ── Status bar ──────────────────────────────────────────────────────────── */
 QStatusBar { background-color: #dce3ea; border-top: 1px solid #bdc3c7; color: #5d6d7e; padding: 2px 8px; }
 

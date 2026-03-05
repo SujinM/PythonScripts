@@ -37,10 +37,12 @@ ORG_NAME: str = "TwinCAT Tools"
 APP_ID: str = "com.twincattools.tonhemodulehmi"
 
 # ── Window sizing ─────────────────────────────────────────────────────────────
-WINDOW_MIN_WIDTH: int = 1200
-WINDOW_MIN_HEIGHT: int = 750
-WINDOW_DEFAULT_WIDTH: int = 1440
-WINDOW_DEFAULT_HEIGHT: int = 900
+# Minimum: fits a 1366×768 14-inch laptop (HD) with room for the OS taskbar.
+# Max-cap:  clamp the 90 %-of-screen size on large external monitors.
+WINDOW_MIN_WIDTH: int = 960
+WINDOW_MIN_HEIGHT: int = 600
+WINDOW_DEFAULT_WIDTH: int = 1920   # upper cap – full-HD monitor
+WINDOW_DEFAULT_HEIGHT: int = 1060  # ~1080 minus taskbar
 
 # ── Polling ───────────────────────────────────────────────────────────────────
 POLL_INTERVAL_MS: int = 300       # fast poll so V/I displays feel live
@@ -71,6 +73,8 @@ SETTING_CONFIG_PATH: str = "plc/config_path"
 SETTING_WINDOW_GEOMETRY: str = "window/geometry"
 SETTING_WINDOW_STATE: str = "window/state"
 SETTING_SPLITTER_STATE: str = "window/splitter"
+SETTING_VIEW_PAGE: str = "window/view_page"
+SETTING_LOG_VISIBLE: str = "window/log_visible"
 
 # ── ToneModule-specific PLC variable names ────────────────────────────────────
 # These are the ADS symbol paths used throughout the controllers.

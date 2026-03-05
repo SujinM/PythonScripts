@@ -41,19 +41,19 @@ class ModuleControlPanel(QGroupBox):
         # ── Buttons ───────────────────────────────────────────────────────────
         self._btn_start = QPushButton("▶  START")
         self._btn_start.setObjectName("btnStart")
-        self._btn_start.setFixedHeight(44)
-        self._btn_start.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self._btn_start.setFixedHeight(34)
+        self._btn_start.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         self._btn_start.setToolTip("Send C_M_24 Start command (0xAA) to the module")
 
         self._btn_stop = QPushButton("■  STOP")
         self._btn_stop.setObjectName("btnStop")
-        self._btn_stop.setFixedHeight(44)
-        self._btn_stop.setFont(QFont("Segoe UI", 11, QFont.Weight.Bold))
+        self._btn_stop.setFixedHeight(34)
+        self._btn_stop.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
         self._btn_stop.setToolTip("Send C_M_24 Stop command (0x55) to the module")
 
         self._btn_clear = QPushButton("⚑  CLEAR FAULT")
         self._btn_clear.setObjectName("btnClearFault")
-        self._btn_clear.setFixedHeight(36)
+        self._btn_clear.setFixedHeight(28)
         self._btn_clear.setToolTip("Clear fault flags and reset PLC state machine")
 
         # ── Module address fields (informational, could later allow editing) ──
@@ -76,23 +76,24 @@ class ModuleControlPanel(QGroupBox):
 
     def _build_layout(self) -> None:
         btn_row = QHBoxLayout()
-        btn_row.setSpacing(8)
+        btn_row.setSpacing(6)
         btn_row.addWidget(self._btn_start)
         btn_row.addWidget(self._btn_stop)
 
         form = QFormLayout()
-        form.setSpacing(6)
-        form.addRow("Module Address:", self._module_addr_label)
-        form.addRow("Master Address:", self._master_addr_label)
+        form.setSpacing(4)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.addRow("Module Addr:", self._module_addr_label)
+        form.addRow("Master Addr:", self._master_addr_label)
         form.addRow("Retries:", self._retry_label)
 
         vbox = QVBoxLayout(self)
-        vbox.setSpacing(10)
+        vbox.setSpacing(6)
+        vbox.setContentsMargins(8, 6, 8, 6)
         vbox.addLayout(btn_row)
         vbox.addWidget(self._btn_clear)
         vbox.addWidget(self._make_separator())
         vbox.addLayout(form)
-        vbox.addStretch()
 
     @staticmethod
     def _make_separator():

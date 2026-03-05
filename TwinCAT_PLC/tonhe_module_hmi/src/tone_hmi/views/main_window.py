@@ -7,20 +7,17 @@ Layout
 ──────
 ┌───────────────────────────────────────────────────────────────────┐
 │  Menu bar  (File | View | Help)                                   │
-│  Tool bar  (Open Config | Connect | Theme toggle)                 │
+│  Tool bar  (Open Config | Theme | 📊 Graph | 🔍 Details | Log)   │
 ├──────────────┬────────────────────────────────────────────────────┤
-│  Connection  │  ┌──── Module Status ────┬──── Control ─────────┐  │
-│  Panel       │  │ State LED             │ START / STOP / CLEAR │  │
-│              │  │ Voltage card          │                      │  │
-│              │  │ Current card          │ Addresses / retries  │  │
-│              │  │ Status text           ├──── Setpoints ───────┤  │
-│              │  │ Flag pills            │ Target V / I         │  │
-│              │  └───────────────────────┴──────────────────────┘  │
-│              │  ┌── Phase Info ──────────┬── Fault / Diag ──────┐  │
-│              │  │ Va, Vb, Vc, Temp       │ Fault decode         │  │
-│              │  └────────────────────────┴──────────────────────┘  │
+│  Connection  │  Module Status panel   │  Control + Setpoints      │
+│  Panel       ├────────────────────────────────────────────────────┤
+│              │  ┌── View switcher bar (Graph / Details) ─────────┐│
+│              │  │  STACKED WIDGET                                ││
+│              │  │   Page 0 – Graph:   full GraphPanel            ││
+│              │  │   Page 1 – Details: phase info | fault panel   ││
+│              │  └────────────────────────────────────────────────┘│
 ├──────────────┴────────────────────────────────────────────────────┤
-│  Log Panel                                                        │
+│  Log Panel  (collapsible via toolbar toggle)                      │
 ├───────────────────────────────────────────────────────────────────┤
 │  Status bar                                                       │
 └───────────────────────────────────────────────────────────────────┘
@@ -34,7 +31,10 @@ from PyQt6.QtWidgets import (
     QApplication,
     QHBoxLayout,
     QMainWindow,
+    QPushButton,
+    QSizePolicy,
     QSplitter,
+    QStackedWidget,
     QStatusBar,
     QToolBar,
     QVBoxLayout,
@@ -47,6 +47,7 @@ from tone_hmi.constants import (
     WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
     STATUS_CONNECTED, STATUS_DISCONNECTED,
     SETTING_WINDOW_GEOMETRY, SETTING_WINDOW_STATE, SETTING_SPLITTER_STATE,
+    SETTING_VIEW_PAGE, SETTING_LOG_VISIBLE,
 )
 from tone_hmi.views.connection_panel import ConnectionPanel
 from tone_hmi.views.module_status_panel import ModuleStatusPanel
@@ -75,7 +76,19 @@ class MainWindow(QMainWindow):
         super().__init__()
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
-        self.resize(WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT)
+
+        # Adaptive initial size: 90 % of the available screen area,
+        # clamped between the minimum and the full-HD upper cap.
+        # Works correctly on a 14-inch laptop (1366×768 / 1920×1080)
+        # as well as on a large external monitor.
+        screen = QApplication.primaryScreen()
+        if screen:
+            avail = screen.availableGeometry()
+            w = max(min(int(avail.width()  * 0.90), WINDOW_DEFAULT_WIDTH),  WINDOW_MIN_WIDTH)
+            h = max(min(int(avail.height() * 0.90), WINDOW_DEFAULT_HEIGHT), WINDOW_MIN_HEIGHT)
+        else:
+            w, h = WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT
+        self.resize(w, h)
 
         # ── Child panels (public so controllers can reach them) ───────────────
         self.connection_panel = ConnectionPanel(self)
@@ -149,32 +162,101 @@ class MainWindow(QMainWindow):
         act_light.triggered.connect(lambda: self.theme_changed.emit("light"))
         tb.addAction(act_light)
 
+        tb.addSeparator()
+
+        # View-switch actions (checkable so they show as pressed)
+        self._act_graph = QAction("📊  Graph", self)
+        self._act_graph.setCheckable(True)
+        self._act_graph.setChecked(True)
+        self._act_graph.setToolTip("Show full-screen graph view")
+        self._act_graph.triggered.connect(lambda: self._switch_view(0))
+        tb.addAction(self._act_graph)
+
+        self._act_details = QAction("🔍  Details", self)
+        self._act_details.setCheckable(True)
+        self._act_details.setToolTip("Show phase info & fault details")
+        self._act_details.triggered.connect(lambda: self._switch_view(1))
+        tb.addAction(self._act_details)
+
+        tb.addSeparator()
+
+        self._act_log = QAction("📋  Log", self)
+        self._act_log.setCheckable(True)
+        self._act_log.setChecked(True)
+        self._act_log.setToolTip("Show / hide the event log panel")
+        self._act_log.triggered.connect(self._toggle_log)
+        tb.addAction(self._act_log)
+
     def _build_central_widget(self) -> None:
-        # ── Top-right: module status + control (horizontal) ───────────────────
-        top_right_top = QHBoxLayout()
-        top_right_top.setSpacing(8)
-        top_right_top.addWidget(self.module_status_panel, stretch=3)
+        # ── Top strip: module status + control/setpoints (always visible) ─────
+        top_strip = QHBoxLayout()
+        top_strip.setSpacing(8)
+        top_strip.addWidget(self.module_status_panel, stretch=3)
 
         ctrl_vbox = QVBoxLayout()
-        ctrl_vbox.setSpacing(8)
+        ctrl_vbox.setSpacing(4)
+        ctrl_vbox.setContentsMargins(0, 0, 0, 0)
         ctrl_vbox.addWidget(self.module_control_panel)
         ctrl_vbox.addWidget(self.setpoint_panel)
+        ctrl_vbox.addStretch()
         ctrl_widget = QWidget()
         ctrl_widget.setLayout(ctrl_vbox)
-        top_right_top.addWidget(ctrl_widget, stretch=2)
+        top_strip.addWidget(ctrl_widget, stretch=2)
 
-        # ── Bottom row: phase info + fault panel ──────────────────────────────
-        bottom_row = QHBoxLayout()
-        bottom_row.setSpacing(8)
-        bottom_row.addWidget(self.phase_info_panel, stretch=1)
-        bottom_row.addWidget(self.fault_panel, stretch=2)
+        top_strip_widget = QWidget()
+        top_strip_widget.setLayout(top_strip)
+        top_strip_widget.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
+        )
 
-        # ── Combine top & bottom into right pane ──────────────────────────────
+        # ── View-switcher tab bar ─────────────────────────────────────────────
+        tab_bar = QHBoxLayout()
+        tab_bar.setContentsMargins(0, 4, 0, 0)
+        tab_bar.setSpacing(2)
+
+        self._btn_graph_tab = QPushButton("📊  Graph")
+        self._btn_graph_tab.setObjectName("tabBtnGraph")
+        self._btn_graph_tab.setCheckable(True)
+        self._btn_graph_tab.setChecked(True)
+        self._btn_graph_tab.setFixedHeight(28)
+        self._btn_graph_tab.clicked.connect(lambda: self._switch_view(0))
+
+        self._btn_details_tab = QPushButton("🔍  Details")
+        self._btn_details_tab.setObjectName("tabBtnDetails")
+        self._btn_details_tab.setCheckable(True)
+        self._btn_details_tab.setFixedHeight(28)
+        self._btn_details_tab.clicked.connect(lambda: self._switch_view(1))
+
+        tab_bar.addWidget(self._btn_graph_tab)
+        tab_bar.addWidget(self._btn_details_tab)
+        tab_bar.addStretch()
+
+        tab_bar_widget = QWidget()
+        tab_bar_widget.setLayout(tab_bar)
+
+        # ── Stacked widget – page 0: Graph, page 1: Details ───────────────────
+        self._view_stack = QStackedWidget()
+
+        # Page 0 – Graph (full space)
+        self._view_stack.addWidget(self.graph_panel)
+
+        # Page 1 – Details (phase info + fault panel side by side)
+        details_page = QWidget()
+        details_layout = QHBoxLayout(details_page)
+        details_layout.setSpacing(8)
+        details_layout.setContentsMargins(0, 0, 0, 0)
+        details_layout.addWidget(self.phase_info_panel, stretch=1)
+        details_layout.addWidget(self.fault_panel, stretch=2)
+        self._view_stack.addWidget(details_page)
+
+        # ── Right pane: top strip + tab bar + stacked view ────────────────────
         right_pane = QWidget()
         right_layout = QVBoxLayout(right_pane)
-        right_layout.setSpacing(8)
-        right_layout.addLayout(top_right_top, stretch=3)
-        right_layout.addLayout(bottom_row, stretch=2)
+        right_layout.setSpacing(4)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.addWidget(top_strip_widget)
+        right_layout.addWidget(tab_bar_widget)
+        right_layout.addWidget(self._view_stack, stretch=1)
 
         # ── Horizontal splitter: connection panel | right pane ────────────────
         top_splitter = QSplitter(Qt.Orientation.Horizontal)
@@ -184,16 +266,14 @@ class MainWindow(QMainWindow):
         top_splitter.setStretchFactor(1, 1)
         top_splitter.setSizes([250, 1050])
 
-        # ── Vertical splitter: main area | log panel ──────────────────────────
+        # ── Vertical splitter: content area | log panel ───────────────────────
         self._main_splitter = QSplitter(Qt.Orientation.Vertical)
         self._main_splitter.setObjectName("mainSplitter")
         self._main_splitter.addWidget(top_splitter)
-        self._main_splitter.addWidget(self.graph_panel)
         self._main_splitter.addWidget(self.log_panel)
-        self._main_splitter.setStretchFactor(0, 3)
-        self._main_splitter.setStretchFactor(1, 2)
-        self._main_splitter.setStretchFactor(2, 1)
-        self._main_splitter.setSizes([480, 280, 160])
+        self._main_splitter.setStretchFactor(0, 4)
+        self._main_splitter.setStretchFactor(1, 1)
+        self._main_splitter.setSizes([640, 160])
 
         container = QWidget()
         vbox = QVBoxLayout(container)
@@ -201,6 +281,20 @@ class MainWindow(QMainWindow):
         vbox.setSpacing(0)
         vbox.addWidget(self._main_splitter)
         self.setCentralWidget(container)
+
+    # ── View switching ────────────────────────────────────────────────────────
+
+    def _switch_view(self, page: int) -> None:
+        """Switch the stacked widget between Graph (0) and Details (1)."""
+        self._view_stack.setCurrentIndex(page)
+        self._btn_graph_tab.setChecked(page == 0)
+        self._btn_details_tab.setChecked(page == 1)
+        self._act_graph.setChecked(page == 0)
+        self._act_details.setChecked(page == 1)
+
+    def _toggle_log(self, checked: bool) -> None:
+        """Show/hide the log panel without destroying its contents."""
+        self.log_panel.setVisible(checked)
 
     def _build_statusbar(self) -> None:
         self._statusbar = QStatusBar(self)
@@ -220,12 +314,22 @@ class MainWindow(QMainWindow):
             self.restoreState(state)
         if not spl.isEmpty():
             self._main_splitter.restoreState(spl)
+        # Restore last active view page
+        page = int(s.value(SETTING_VIEW_PAGE, 0))
+        self._switch_view(page)
+        # Restore log visibility
+        log_visible = s.value(SETTING_LOG_VISIBLE, True)
+        visible = log_visible if isinstance(log_visible, bool) else log_visible == "true"
+        self._act_log.setChecked(visible)
+        self.log_panel.setVisible(visible)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         s = QSettings(ORG_NAME, APP_NAME)
         s.setValue(SETTING_WINDOW_GEOMETRY, self.saveGeometry())
         s.setValue(SETTING_WINDOW_STATE, self.saveState())
         s.setValue(SETTING_SPLITTER_STATE, self._main_splitter.saveState())
+        s.setValue(SETTING_VIEW_PAGE, self._view_stack.currentIndex())
+        s.setValue(SETTING_LOG_VISIBLE, self.log_panel.isVisible())
         if self._app_controller:
             self._app_controller.teardown()
         super().closeEvent(event)

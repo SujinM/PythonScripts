@@ -296,3 +296,29 @@ QPushButton#btnClearGraph {
 }
 QPushButton#btnClearGraph:hover   { background-color: #5c2020; }
 QPushButton#btnClearGraph:pressed { background-color: #c0392b; color: white; }
+
+/* ── View-switcher tab buttons ───────────────────────────────────────── */
+QPushButton#tabBtnGraph,
+QPushButton#tabBtnDetails {
+    background-color: #252840;
+    border: 1px solid #3a3e5c;
+    border-bottom: none;
+    border-radius: 4px 4px 0 0;
+    color: #95a5a6;
+    padding: 3px 18px;
+    font-weight: 500;
+    min-width: 90px;
+}
+QPushButton#tabBtnGraph:hover,
+QPushButton#tabBtnDetails:hover {
+    background-color: #2e3350;
+    color: #cdd3e0;
+}
+QPushButton#tabBtnGraph:checked,
+QPushButton#tabBtnDetails:checked {
+    background-color: #1a1d27;
+    border-color: #5b6bca;
+    border-bottom: 2px solid #5b6bca;
+    color: #a0aaff;
+    font-weight: bold;
+}
