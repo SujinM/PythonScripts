@@ -7,7 +7,7 @@ Layout
 ──────
 ┌───────────────────────────────────────────────────────────────────┐
 │  Menu bar  (File | View | Help)                                   │
-│  Tool bar  (Open Config | Theme | 📊 Graph | 🔍 Details | Log)   │
+│  Tool bar  (Open Config | Theme | 📊 Graph | 🔍 Details | Log)     │
 ├──────────────┬────────────────────────────────────────────────────┤
 │  Connection  │  Module Status panel   │  Control + Setpoints      │
 │  Panel       ├────────────────────────────────────────────────────┤
@@ -191,6 +191,7 @@ class MainWindow(QMainWindow):
         # ── Top strip: module status + control/setpoints (always visible) ─────
         top_strip = QHBoxLayout()
         top_strip.setSpacing(8)
+        top_strip.setContentsMargins(4, 4, 4, 4)
         top_strip.addWidget(self.module_status_panel, stretch=3)
 
         ctrl_vbox = QVBoxLayout()
@@ -209,10 +210,10 @@ class MainWindow(QMainWindow):
             QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed
         )
 
-        # ── View-switcher tab bar ─────────────────────────────────────────────
+        # ── View-switcher tab bar ───────────────────────────────────────────────
         tab_bar = QHBoxLayout()
-        tab_bar.setContentsMargins(0, 4, 0, 0)
-        tab_bar.setSpacing(2)
+        tab_bar.setContentsMargins(8, 8, 8, 0)  # left-indent + top gap
+        tab_bar.setSpacing(6)  # gap between Graph and Details buttons
 
         self._btn_graph_tab = QPushButton("📊  Graph")
         self._btn_graph_tab.setObjectName("tabBtnGraph")
@@ -240,21 +241,29 @@ class MainWindow(QMainWindow):
         # Page 0 – Graph (full space)
         self._view_stack.addWidget(self.graph_panel)
 
-        # Page 1 – Details (phase info + fault panel side by side)
+        # Page 1 – Details (phase info + fault panel side by side, splittable)
         details_page = QWidget()
-        details_layout = QHBoxLayout(details_page)
-        details_layout.setSpacing(8)
-        details_layout.setContentsMargins(0, 0, 0, 0)
-        details_layout.addWidget(self.phase_info_panel, stretch=1)
-        details_layout.addWidget(self.fault_panel, stretch=2)
+        details_outer = QVBoxLayout(details_page)
+        details_outer.setContentsMargins(4, 4, 4, 4)
+        details_outer.setSpacing(0)
+
+        details_splitter = QSplitter(Qt.Orientation.Horizontal)
+        details_splitter.addWidget(self.phase_info_panel)
+        details_splitter.addWidget(self.fault_panel)
+        details_splitter.setStretchFactor(0, 1)
+        details_splitter.setStretchFactor(1, 2)
+        details_splitter.setSizes([320, 640])
+
+        details_outer.addWidget(details_splitter)
         self._view_stack.addWidget(details_page)
 
-        # ── Right pane: top strip + tab bar + stacked view ────────────────────
+        # ── Right pane: top strip + tab bar + stacked view ───────────────────────
         right_pane = QWidget()
         right_layout = QVBoxLayout(right_pane)
-        right_layout.setSpacing(4)
-        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(0)
+        right_layout.setContentsMargins(4, 4, 4, 4)  # breathing room inside right pane
         right_layout.addWidget(top_strip_widget)
+        right_layout.addSpacing(6)  # gap between status strip and tab bar
         right_layout.addWidget(tab_bar_widget)
         right_layout.addWidget(self._view_stack, stretch=1)
 
@@ -277,7 +286,7 @@ class MainWindow(QMainWindow):
 
         container = QWidget()
         vbox = QVBoxLayout(container)
-        vbox.setContentsMargins(6, 6, 6, 6)
+        vbox.setContentsMargins(8, 8, 8, 8)  # outer window padding
         vbox.setSpacing(0)
         vbox.addWidget(self._main_splitter)
         self.setCentralWidget(container)

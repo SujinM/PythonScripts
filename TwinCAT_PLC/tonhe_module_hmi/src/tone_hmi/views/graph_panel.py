@@ -16,9 +16,10 @@ from collections import deque
 from typing import Optional
 
 import pyqtgraph as pg
-from PyQt6.QtCore import pyqtSlot
+from PyQt6.QtCore import QTimer, Qt, pyqtSlot
 from PyQt6.QtWidgets import (
     QComboBox,
+    QDialog,
     QHBoxLayout,
     QLabel,
     QPushButton,
@@ -39,6 +40,162 @@ _TIME_WINDOWS: dict[str, int] = {
     "5 min": 300,
     "All":   0,
 }
+
+# ---------------------------------------------------------------------------
+# Popup (full-screen) graph window
+# ---------------------------------------------------------------------------
+
+class GraphPopupWindow(QDialog):
+    """A standalone resizable window that mirrors the main graph panel's data."""
+
+    def __init__(self, graph_panel: "GraphPanel", parent: Optional[QWidget] = None) -> None:
+        super().__init__(parent, Qt.WindowType.Window)
+        self.setWindowTitle("Graph — Expanded View")
+        self.resize(1200, 700)
+        self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
+        self._source = graph_panel
+
+        pg.setConfigOptions(antialias=True)
+        pg.setConfigOption('background', '#11111b')
+        pg.setConfigOption('foreground', '#cdd6f4')
+
+        self._gw = pg.GraphicsLayoutWidget(parent=self)
+        self._gw.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
+        self._gw.ci.layout.setContentsMargins(14, 14, 14, 14)
+        self._gw.ci.layout.setSpacing(16)
+
+        def _make_plot(row, label, unit, color, y_max):
+            p = self._gw.addPlot(row=row, col=0)
+            p.setLabel("left", label, units=unit)
+            if row == 1:
+                p.setLabel("bottom", "Elapsed time", units="s")
+            p.showGrid(x=True, y=True, alpha=0.12)
+            p.setMouseEnabled(x=True, y=False)
+            p.disableAutoRange(axis=pg.ViewBox.YAxis)
+            p.setYRange(0, y_max, padding=0)
+            p.setLimits(yMin=0, yMax=y_max, xMin=0)
+            for ax in ['left', 'bottom']:
+                a = p.getAxis(ax)
+                a.setPen(pg.mkPen(color="#45475a", width=1))
+                a.setTextPen(pg.mkPen(color="#a6adc8"))
+            curve = p.plot(pen=pg.mkPen(color=color, width=2.5))
+            return p, curve
+
+        self._v_plot, self._v_curve = _make_plot(0, "Voltage", "V", "#a6e3a1", 500)
+        self._a_plot, self._a_curve = _make_plot(1, "Current", "A", "#89b4fa", 100)
+        self._a_plot.setXLink(self._v_plot)
+        self._gw.ci.layout.setRowStretchFactor(0, 1)
+        self._gw.ci.layout.setRowStretchFactor(1, 1)
+
+        # Crosshairs
+        dash_pen = pg.mkPen(color="#6c7086", width=1.5, dash=[4, 4])
+        self._v_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
+        self._a_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
+        self._v_plot.addItem(self._v_vline, ignoreBounds=True)
+        self._a_plot.addItem(self._a_vline, ignoreBounds=True)
+        self._v_vline.hide()
+        self._a_vline.hide()
+        self._gw.scene().sigMouseMoved.connect(self._mouse_moved)
+
+        # Hover label
+        self._hover_lbl = QLabel("")
+        self._hover_lbl.setStyleSheet(
+            "font-family:'Consolas',monospace; font-size:11pt; "
+            "font-weight:bold; color:#89b4fa;"
+        )
+
+        toolbar = QHBoxLayout()
+        toolbar.setContentsMargins(8, 4, 8, 4)
+        toolbar.addWidget(QLabel("Hover over graph for values"))
+        toolbar.addStretch()
+        toolbar.addWidget(self._hover_lbl)
+
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(8, 8, 8, 8)
+        layout.setSpacing(4)
+        toolbar_widget = QWidget()
+        toolbar_widget.setLayout(toolbar)
+        layout.addWidget(toolbar_widget)
+        layout.addWidget(self._gw, stretch=1)
+
+        # Refresh timer
+        self._timer = QTimer(self)
+        self._timer.timeout.connect(self._refresh)
+        self._timer.start(250)
+
+    def _refresh(self) -> None:
+        if not self._source._t:
+            return
+        t_arr = list(self._source._t)
+        v_arr = list(self._source._v)
+        a_arr = list(self._source._a)
+
+        ws = self._source._window_s
+        if ws > 0 and t_arr:
+            cutoff = t_arr[-1] - ws
+            start = next((i for i, t in enumerate(t_arr) if t >= cutoff), 0)
+            t_arr = t_arr[start:]
+            v_arr = v_arr[start:]
+            a_arr = a_arr[start:]
+
+        self._v_curve.setData(t_arr, v_arr)
+        self._a_curve.setData(t_arr, a_arr)
+
+        if t_arr and ws > 0:
+            x_max = t_arr[-1]
+            self._v_plot.setXRange(x_max - ws, x_max, padding=0.02)
+
+    @pyqtSlot(object)
+    def _mouse_moved(self, pos) -> None:
+        active_plot = None
+        if self._v_plot.sceneBoundingRect().contains(pos):
+            mouse_point = self._v_plot.vb.mapSceneToView(pos)
+            active_plot = mouse_point
+        elif self._a_plot.sceneBoundingRect().contains(pos):
+            mouse_point = self._a_plot.vb.mapSceneToView(pos)
+            active_plot = mouse_point
+
+        if active_plot is None:
+            self._v_vline.hide()
+            self._a_vline.hide()
+            self._hover_lbl.setText("")
+            return
+
+        x_val = active_plot.x()
+        t_arr = list(self._source._t)
+        v_arr = list(self._source._v)
+        a_arr = list(self._source._a)
+
+        if not t_arr or x_val < t_arr[0] or x_val > t_arr[-1]:
+            self._v_vline.hide()
+            self._a_vline.hide()
+            self._hover_lbl.setText("")
+            return
+
+        idx = bisect.bisect_left(t_arr, x_val)
+        idx = max(0, min(idx, len(t_arr) - 1))
+        if 0 < idx < len(t_arr):
+            if abs(x_val - t_arr[idx - 1]) < abs(x_val - t_arr[idx]):
+                idx -= 1
+
+        self._v_vline.setPos(t_arr[idx])
+        self._a_vline.setPos(t_arr[idx])
+        self._v_vline.show()
+        self._a_vline.show()
+        self._hover_lbl.setText(
+            f" t={t_arr[idx]:.1f}s | V={v_arr[idx]:.1f} V | I={a_arr[idx]:.2f} A "
+        )
+
+    def closeEvent(self, event) -> None:
+        self._timer.stop()
+        if self._source._popup_win is self:
+            self._source._popup_win = None
+        super().closeEvent(event)
+
+
+# ---------------------------------------------------------------------------
+# Main embedded panel
+# ---------------------------------------------------------------------------
 
 
 class GraphPanel(QWidget):
@@ -130,8 +287,8 @@ class GraphPanel(QWidget):
 
         # ── Controls bar ──────────────────────────────────────────────────────
         bar = QHBoxLayout()
-        bar.setContentsMargins(4, 2, 4, 2)
-        bar.setSpacing(8)
+        bar.setContentsMargins(8, 6, 8, 6)
+        bar.setSpacing(10)
 
         bar.addWidget(QLabel("Window:"))
 
@@ -145,7 +302,10 @@ class GraphPanel(QWidget):
         bar.addStretch()
 
         self._hover_label = QLabel("")
-        self._hover_label.setStyleSheet("font-family: 'Consolas', monospace; font-size: 11pt; font-weight: bold; color: #5dade2;")
+        self._hover_label.setStyleSheet(
+            "font-family:'Consolas',monospace; font-size:11pt; "
+            "font-weight:bold; color:#89b4fa;"
+        )
         bar.addWidget(self._hover_label)
 
         bar.addStretch()
@@ -160,6 +320,14 @@ class GraphPanel(QWidget):
         self._clear_btn.setObjectName("btnClearGraph")
         self._clear_btn.clicked.connect(self.clear)
         bar.addWidget(self._clear_btn)
+
+        self._expand_btn = QPushButton("⛶")
+        self._expand_btn.setObjectName("btnExpandGraph")
+        self._expand_btn.setToolTip("Open graph in larger popup window")
+        self._expand_btn.clicked.connect(self._toggle_popup)
+        bar.addWidget(self._expand_btn)
+
+        self._popup_win: Optional[GraphPopupWindow] = None
 
         bar_widget = QWidget()
         bar_widget.setLayout(bar)
@@ -209,6 +377,16 @@ class GraphPanel(QWidget):
     def _on_pause_toggled(self, checked: bool) -> None:
         self._paused = checked
         self._pause_btn.setText("▶  Resume" if checked else "⏸  Pause")
+
+    @pyqtSlot()
+    def _toggle_popup(self) -> None:
+        """Open the popup graph window, or bring it to front if already open."""
+        if self._popup_win is not None:
+            self._popup_win.raise_()
+            self._popup_win.activateWindow()
+        else:
+            self._popup_win = GraphPopupWindow(self, parent=None)
+            self._popup_win.show()
 
     @pyqtSlot(object)
     def _mouse_moved(self, pos) -> None:

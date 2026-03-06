@@ -80,13 +80,13 @@ class FaultPanel(QGroupBox):
         self._faults_edit = QTextEdit()
         self._faults_edit.setReadOnly(True)
         self._faults_edit.setFont(mono)
-        self._faults_edit.setFixedHeight(90)
+        self._faults_edit.setMinimumHeight(80)
         self._faults_edit.setPlaceholderText("wModuleFaults bits will appear here")
 
         self._ext_faults_edit = QTextEdit()
         self._ext_faults_edit.setReadOnly(True)
         self._ext_faults_edit.setFont(mono)
-        self._ext_faults_edit.setFixedHeight(90)
+        self._ext_faults_edit.setMinimumHeight(80)
         self._ext_faults_edit.setPlaceholderText("wModuleExtFaultWarningBits will appear here")
 
         # ── Quick-read labels ─────────────────────────────────────────────────
@@ -107,7 +107,9 @@ class FaultPanel(QGroupBox):
 
     def _build_layout(self) -> None:
         form = QFormLayout()
-        form.setSpacing(6)
+        form.setSpacing(10)
+        form.setContentsMargins(0, 0, 0, 0)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.addRow("Fault Word (hex):", self._faults_word_lbl)
         form.addRow("Ext Fault Word (hex):", self._ext_word_lbl)
         form.addRow("Status Bits (hex):", self._status_bits_lbl)
@@ -117,17 +119,25 @@ class FaultPanel(QGroupBox):
 
         g_faults = QGroupBox("wModuleFaults Decoded")
         g_faults_l = QVBoxLayout(g_faults)
+        g_faults_l.setContentsMargins(8, 12, 8, 8)
         g_faults_l.addWidget(self._faults_edit)
 
         g_ext = QGroupBox("wModuleExtFaultWarningBits Decoded")
         g_ext_l = QVBoxLayout(g_ext)
+        g_ext_l.setContentsMargins(8, 12, 8, 8)
         g_ext_l.addWidget(self._ext_faults_edit)
 
+        # Place the two decoded boxes side by side so they use horizontal space
+        decoded_row = QHBoxLayout()
+        decoded_row.setSpacing(8)
+        decoded_row.addWidget(g_faults, stretch=1)
+        decoded_row.addWidget(g_ext, stretch=1)
+
         vbox = QVBoxLayout(self)
-        vbox.setSpacing(8)
+        vbox.setContentsMargins(12, 16, 12, 12)
+        vbox.setSpacing(12)
         vbox.addLayout(form)
-        vbox.addWidget(g_faults)
-        vbox.addWidget(g_ext)
+        vbox.addLayout(decoded_row, stretch=1)
 
     # ── Public update API ─────────────────────────────────────────────────────
 

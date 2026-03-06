@@ -36,13 +36,17 @@ class PhaseInfoPanel(QGroupBox):
 
     def _build_layout(self) -> None:
         form = QFormLayout()
-        form.setSpacing(8)
+        form.setSpacing(14)
+        form.setContentsMargins(4, 4, 4, 4)
+        form.setLabelAlignment(Qt.AlignmentFlag.AlignLeft)
         form.addRow("Phase A Voltage:", self._row(self._va, "V"))
         form.addRow("Phase B Voltage:", self._row(self._vb, "V"))
         form.addRow("Phase C Voltage:", self._row(self._vc, "V"))
         form.addRow("Ambient Temp:", self._row(self._temp, "°C"))
 
         vbox = QVBoxLayout(self)
+        vbox.setContentsMargins(12, 16, 12, 12)
+        vbox.setSpacing(10)
         vbox.addLayout(form)
         vbox.addStretch()
 
@@ -51,7 +55,8 @@ class PhaseInfoPanel(QGroupBox):
         lbl = QLabel("–")
         lbl.setFont(_VAL_FONT)
         lbl.setAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-        lbl.setMinimumWidth(80)
+        lbl.setMinimumWidth(90)
+        lbl.setStyleSheet("color: #89dceb;")
         return lbl
 
     @staticmethod
@@ -59,8 +64,12 @@ class PhaseInfoPanel(QGroupBox):
         w = QWidget()
         h = QHBoxLayout(w)
         h.setContentsMargins(0, 0, 0, 0)
+        h.setSpacing(4)
+        h.addStretch()
         h.addWidget(val_lbl)
-        h.addWidget(QLabel(unit))
+        unit_lbl = QLabel(unit)
+        unit_lbl.setStyleSheet("color: #6c7086; font-size: 10pt;")
+        h.addWidget(unit_lbl)
         return w
 
     # ── Public update API ─────────────────────────────────────────────────────
