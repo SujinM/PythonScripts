@@ -1,0 +1,41 @@
+# ============================================================
+# WhatsApp Notification System — Python Dependencies
+# ============================================================
+
+# -----------------------------------------------------------
+# Core runtime (no third-party packages strictly required —
+# the system uses stdlib urllib as a fallback HTTP client)
+# -----------------------------------------------------------
+
+# Twilio SDK — install if using provider = twilio
+# Enables cleaner API access; the system falls back to stdlib
+# urllib when this is not installed.
+twilio>=8.0.0
+
+# Loads .env file into os.environ so secrets stay out of config.ini.
+# Falls back to a built-in parser if not installed, but this is recommended.
+python-dotenv>=1.0.0
+
+# -----------------------------------------------------------
+# Optional / extension packages
+# -----------------------------------------------------------
+
+# File-system event watching (more reliable than mtime polling
+# on Linux inotify; not required — built-in fallback available)
+# watchdog>=3.0.0
+
+# System metrics for ThresholdTrigger examples (CPU / memory)
+# psutil>=5.9.0
+
+# YAML config support (future extension)
+# PyYAML>=6.0
+
+# Raspberry Pi GPIO (Pi only — do not install on non-Pi systems)
+# RPi.GPIO>=0.7.0
+# gpiozero>=1.6.2
+
+# -----------------------------------------------------------
+# Development / testing
+# -----------------------------------------------------------
+pytest>=7.4.0
+pytest-cov>=4.1.0

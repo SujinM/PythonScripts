@@ -1,0 +1,106 @@
+# ============================================================
+# WhatsApp Notification System — Configuration Template
+# ============================================================
+# 1. Copy this file to config/config.ini
+# 2. Fill in your credentials
+# 3. Adjust notification and trigger settings to your needs
+#
+# Lines starting with # are comments and are ignored.
+# ============================================================
+
+
+# ------------------------------------------------------------
+# [whatsapp] — Provider credentials and phone numbers
+# ------------------------------------------------------------
+[whatsapp]
+
+# Provider selection: "twilio" or "cloud_api" (Meta WhatsApp Business)
+provider = twilio
+
+# --- Twilio ---
+# account_sid  : Your Twilio Account SID (begins with "AC")
+# auth_token   : Your Twilio Auth Token
+# from_number  : Your Twilio WhatsApp-enabled number
+#                Format: whatsapp:+<country_code><number>
+#                Example: whatsapp:+14155238886  (Twilio sandbox)
+#
+# --- Meta WhatsApp Cloud API ---
+# account_sid  : Phone Number ID (numeric, from Meta Developer Console)
+# auth_token   : Permanent or temporary Cloud API bearer token
+# from_number  : Same as account_sid (kept for config consistency)
+
+account_sid  = ${TWILIO_ACCOUNT_SID}
+auth_token   = ${TWILIO_AUTH_TOKEN}
+from_number  = ${TWILIO_FROM_NUMBER}
+
+# Comma-separated list of recipient numbers.
+# Twilio format  : whatsapp:+<country><number>
+# Cloud API format: +<country><number>
+# Multiple numbers: ${TWILIO_TO_NUMBERS} can be a comma-separated list
+to_numbers = ${TWILIO_TO_NUMBERS}
+
+
+# ------------------------------------------------------------
+# [notification] — Message behaviour
+# ------------------------------------------------------------
+[notification]
+
+# How often (in minutes) the time-based trigger fires.
+interval_minutes = 5
+
+# Retry settings for failed send attempts.
+retry_attempts       = 3
+retry_delay_seconds  = 10
+
+# Message template.  Supported placeholders:
+#   {timestamp}  — event timestamp (YYYY-MM-DD HH:MM:SS)
+#   {message}    — trigger message text
+#   {source}     — trigger source label
+#   {severity}   — INFO | WARNING | ERROR | CRITICAL
+message_template = [{severity}] {source} @ {timestamp}
+
+{message}
+
+
+# ------------------------------------------------------------
+# [triggers] — Enable / disable individual trigger types
+# ------------------------------------------------------------
+[triggers]
+
+# Periodic time-based notification (uses interval_minutes above)
+enable_time_trigger   = true
+
+# Fire when files in watch_path are created or modified
+enable_file_trigger   = false
+
+# Load a custom trigger from an external Python module
+enable_custom_trigger = false
+
+# Directory or file to monitor when enable_file_trigger = true
+# Absolute or relative path — relative paths are resolved from project root
+watch_path = /path/to/watch
+
+# Full path to a Python file that exports build_triggers(cfg) -> list[BaseTrigger]
+# Only used when enable_custom_trigger = true
+custom_trigger_module =
+
+
+# ------------------------------------------------------------
+# [logging] — Log output settings
+# ------------------------------------------------------------
+[logging]
+
+# Log level: DEBUG | INFO | WARNING | ERROR | CRITICAL
+level = INFO
+
+# Optional path for rotating log file.
+# Leave empty to log to console only.
+# Example: logs/whatsapp_notifier.log
+log_file = logs/whatsapp_notifier.log
+
+# Maximum size of a single log file before rotation (bytes).
+# Default: 5242880 = 5 MB
+max_bytes = 5242880
+
+# Number of backup log files to retain.
+backup_count = 3

@@ -1,0 +1,32 @@
+# ============================================================
+# Git ignore rules for WhatsApp Notification System
+# ============================================================
+
+# --- Secret files (NEVER commit these) ---
+.env
+config/config.ini
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+*.pyo
+.venv/
+venv/
+env/
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# --- Logs ---
+logs/
+*.log
+
+# --- Test coverage ---
+.coverage
+htmlcov/
+.pytest_cache/
+
+# --- OS ---
+.DS_Store
+Thumbs.db
