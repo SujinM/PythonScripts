@@ -218,13 +218,13 @@ class MainWindow(QMainWindow):
         self._btn_graph_tab.setObjectName("tabBtnGraph")
         self._btn_graph_tab.setCheckable(True)
         self._btn_graph_tab.setChecked(True)
-        self._btn_graph_tab.setFixedHeight(28)
+        self._btn_graph_tab.setMinimumHeight(32)
         self._btn_graph_tab.clicked.connect(lambda: self._switch_view(0))
 
         self._btn_details_tab = QPushButton("🔍  Details")
         self._btn_details_tab.setObjectName("tabBtnDetails")
         self._btn_details_tab.setCheckable(True)
-        self._btn_details_tab.setFixedHeight(28)
+        self._btn_details_tab.setMinimumHeight(32)
         self._btn_details_tab.clicked.connect(lambda: self._switch_view(1))
 
         tab_bar.addWidget(self._btn_graph_tab)

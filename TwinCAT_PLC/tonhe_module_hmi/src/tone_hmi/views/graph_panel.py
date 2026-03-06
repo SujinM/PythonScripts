@@ -10,6 +10,7 @@ samples; a time-window combo-box clips the visible range.
 
 from __future__ import annotations
 
+import bisect
 import time
 from collections import deque
 from typing import Optional
@@ -79,8 +80,7 @@ class GraphPanel(QWidget):
         def style_plot(plot: pg.PlotItem):
             plot.showGrid(x=True, y=True, alpha=0.15)
             plot.setMouseEnabled(x=True, y=False)  # Allow X panning, but fix Y auto-scaling behavior
-            plot.enableAutoRange(y=True)
-            plot.setLimits(yMin=0)  # Y-axis always starts at 0
+            plot.disableAutoRange(axis=pg.ViewBox.YAxis)  # Disable auto-range to use fixed boundaries
             plot.setLimits(xMin=0)  # X-axis always starts at 0 
             
             # Style axis lines
@@ -93,6 +93,8 @@ class GraphPanel(QWidget):
         self._v_plot: pg.PlotItem = self._gw.addPlot(row=0, col=0)
         self._v_plot.setLabel("left", "Voltage", units="V")
         style_plot(self._v_plot)
+        self._v_plot.setYRange(0, 500, padding=0)
+        self._v_plot.setLimits(yMin=0, yMax=500)
         self._v_curve = self._v_plot.plot(
             pen=pg.mkPen(color="#2ecc71", width=2.5),
             name="Voltage",
@@ -103,6 +105,8 @@ class GraphPanel(QWidget):
         self._a_plot.setLabel("left", "Current", units="A")
         self._a_plot.setLabel("bottom", "Elapsed time", units="s")
         style_plot(self._a_plot)
+        self._a_plot.setYRange(0, 100, padding=0)
+        self._a_plot.setLimits(yMin=0, yMax=100)
         self._a_plot.setXLink(self._v_plot)
         self._a_curve = self._a_plot.plot(
             pen=pg.mkPen(color="#3498db", width=2.5),
@@ -112,6 +116,17 @@ class GraphPanel(QWidget):
         self._gw.ci.layout.setSpacing(15)
         self._gw.ci.layout.setRowStretchFactor(0, 1)
         self._gw.ci.layout.setRowStretchFactor(1, 1)
+
+        # ── Crosshairs ────────────────────────────────────────────────────────
+        dash_pen = pg.mkPen(color="#888888", width=1.5, dash=[4, 4])
+        self._v_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
+        self._a_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
+        self._v_plot.addItem(self._v_vline, ignoreBounds=True)
+        self._a_plot.addItem(self._a_vline, ignoreBounds=True)
+        self._v_vline.hide()
+        self._a_vline.hide()
+
+        self._gw.scene().sigMouseMoved.connect(self._mouse_moved)
 
         # ── Controls bar ──────────────────────────────────────────────────────
         bar = QHBoxLayout()
@@ -126,6 +141,12 @@ class GraphPanel(QWidget):
         self._win_combo.setCurrentText("60 s")
         self._win_combo.currentTextChanged.connect(self._on_window_changed)
         bar.addWidget(self._win_combo)
+
+        bar.addStretch()
+
+        self._hover_label = QLabel("")
+        self._hover_label.setStyleSheet("font-family: 'Consolas', monospace; font-size: 11pt; font-weight: bold; color: #5dade2;")
+        bar.addWidget(self._hover_label)
 
         bar.addStretch()
 
@@ -189,6 +210,55 @@ class GraphPanel(QWidget):
         self._paused = checked
         self._pause_btn.setText("▶  Resume" if checked else "⏸  Pause")
 
+    @pyqtSlot(object)
+    def _mouse_moved(self, pos) -> None:
+        """Handle mouse movement to update crosshairs and hover readout."""
+        if self._v_plot.sceneBoundingRect().contains(pos):
+            mouse_point = self._v_plot.vb.mapSceneToView(pos)
+            self._update_hover(mouse_point.x())
+        elif self._a_plot.sceneBoundingRect().contains(pos):
+            mouse_point = self._a_plot.vb.mapSceneToView(pos)
+            self._update_hover(mouse_point.x())
+        else:
+            self._v_vline.hide()
+            self._a_vline.hide()
+            self._hover_label.setText("")
+
+    def _update_hover(self, x_val: float) -> None:
+        """Find the closest data point and update the UI."""
+        if not self._t:
+            return
+            
+        t_arr = list(self._t)
+        v_arr = list(self._v)
+        a_arr = list(self._a)
+        
+        if not t_arr or x_val < t_arr[0] or x_val > t_arr[-1]:
+            self._v_vline.hide()
+            self._a_vline.hide()
+            self._hover_label.setText("")
+            return
+            
+        idx = bisect.bisect_left(t_arr, x_val)
+        if idx == 0:
+            idx = 0
+        elif idx == len(t_arr):
+            idx = len(t_arr) - 1
+        else:
+            if abs(x_val - t_arr[idx - 1]) < abs(x_val - t_arr[idx]):
+                idx = idx - 1
+                
+        actual_t = t_arr[idx]
+        v_val = v_arr[idx]
+        a_val = a_arr[idx]
+        
+        self._v_vline.setPos(actual_t)
+        self._a_vline.setPos(actual_t)
+        self._v_vline.show()
+        self._a_vline.show()
+        
+        self._hover_label.setText(f" Time: {actual_t:.1f}s | Volts: {v_val:.1f} V | Curr: {a_val:.2f} A ")
+
     # ── Private helpers ───────────────────────────────────────────────────────
 
     def _redraw(self) -> None:
@@ -213,14 +283,3 @@ class GraphPanel(QWidget):
             x_max = t_arr[-1]
             x_min = x_max - self._window_s
             self._v_plot.setXRange(x_min, x_max, padding=0.02)
-            
-        # Force Y-axis to bound between 0 and the max data value (plus a 5% margin)
-        if v_arr:
-            v_max = max(v_arr)
-            v_limit = v_max * 1.05 if v_max > 0 else 10.0
-            self._v_plot.setYRange(0, v_limit, padding=0.0)
-            
-        if a_arr:
-            a_max = max(a_arr)
-            a_limit = a_max * 1.05 if a_max > 0 else 10.0
-            self._a_plot.setYRange(0, a_limit, padding=0.0)
