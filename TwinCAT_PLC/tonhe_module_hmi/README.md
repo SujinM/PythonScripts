@@ -32,6 +32,7 @@ python app.py
 
 # MOCK ADS
 MOCK_ADS=1 python app.py
+$env:MOCK_ADS=1; python app.py
 
 # Build
 scripts\build_cx.bat              # build exe tree
