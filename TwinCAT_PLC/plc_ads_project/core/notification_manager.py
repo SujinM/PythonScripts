@@ -37,8 +37,9 @@ Thread Safety
 from __future__ import annotations
 
 import queue
+import struct
 import threading
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import Any, Optional
 
 import pyads
@@ -56,19 +57,41 @@ log = get_logger(__name__)
 # Maximum number of pending notifications buffered before the oldest is dropped.
 _QUEUE_MAX_SIZE: int = 1000
 
+# struct format strings for direct payload decoding (little-endian TwinCAT byte order).
+# Types absent from this map (STRING, ARRAY) cannot be decoded from raw bytes and
+# will fall back to a read_by_name call in the dispatcher thread.
+_STRUCT_FMT: dict[str, str] = {
+    "BOOL":  "<?",
+    "BYTE":  "<B",
+    "SINT":  "<b",
+    "USINT": "<B",
+    "INT":   "<h",
+    "UINT":  "<H",
+    "DINT":  "<i",
+    "UDINT": "<I",
+    "LINT":  "<q",
+    "ULINT": "<Q",
+    "REAL":  "<f",
+    "LREAL": "<d",
+}
+
 
 @dataclass
 class _NotificationItem:
     """
     Lightweight payload queued from the ADS callback thread.
 
-    Only the variable name and its PLC type are stored here.  The actual
-    current value is fetched from the PLC via ``read_by_name`` in the
-    dispatcher thread, avoiding the need to manually deserialise raw ctypes
-    data from the notification struct (which varies between pyads versions).
+    For numeric / boolean PLC types the raw notification bytes are decoded
+    inline inside the ADS callback using :data:`_STRUCT_FMT`, so ``value``
+    is already populated and the dispatcher can skip the extra
+    ``read_by_name`` round-trip.
+
+    For STRING / ARRAY types (or if inline decoding fails) ``value`` is
+    ``None`` and the dispatcher falls back to a ``read_by_name`` call.
     """
     variable_name: str
     plc_type: str
+    value: Optional[Any] = field(default=None)
 
 
 class NotificationManager:
@@ -291,16 +314,32 @@ class NotificationManager:
         Returns:
             A ``callback(notification, data) → None`` callable.
         """
+        fmt = _STRUCT_FMT.get(plc_type.upper())
+
         def _callback(
-            notification: Any,  # SAdsNotificationHeader – not used directly
+            notification: Any,  # SAdsNotificationHeader (pyads 3.x)
             data: Any,           # (name, handle) tuple from pyads
             _name: str = variable_name,
             _type: str = plc_type,
+            _fmt: Optional[str] = fmt,
         ) -> None:
             try:
+                # Fast path: decode the raw notification payload in-place so
+                # the dispatcher thread can skip the round-trip read_by_name.
+                decoded_value: Optional[Any] = None
+                if _fmt is not None:
+                    try:
+                        payload = bytes(notification.payload)
+                        size = struct.calcsize(_fmt)
+                        if len(payload) >= size:
+                            (decoded_value,) = struct.unpack(_fmt, payload[:size])
+                    except Exception:  # noqa: BLE001
+                        decoded_value = None  # Dispatcher will fall back to read_by_name.
+
                 item = _NotificationItem(
                     variable_name=_name,
                     plc_type=_type,
+                    value=decoded_value,
                 )
                 try:
                     self._queue.put_nowait(item)
@@ -347,16 +386,28 @@ class NotificationManager:
                     )
                     continue
 
-                # Fetch the current value fresh from the PLC (trigger-based approach).
-                plc_type_obj = DataTypeConverter.get_pyads_type(item.plc_type)
-                raw = self._client.read_by_name(item.variable_name, plc_type_obj)
-                python_value = DataTypeConverter.to_python(item.plc_type, raw)
+                if item.value is not None:
+                    # Fast path: value was decoded inline in the ADS callback;
+                    # no extra round-trip to the PLC is required.
+                    python_value = item.value
+                    log.debug(
+                        "Dispatched notification (inline): '%s' = %r",
+                        item.variable_name,
+                        python_value,
+                    )
+                else:
+                    # Slow path: STRING, ARRAY, or inline decode failed –
+                    # fetch the current value via a fresh read_by_name.
+                    plc_type_obj = DataTypeConverter.get_pyads_type(item.plc_type)
+                    raw = self._client.read_by_name(item.variable_name, plc_type_obj)
+                    python_value = DataTypeConverter.to_python(item.plc_type, raw)
+                    log.debug(
+                        "Dispatched notification (read_by_name): '%s' = %r",
+                        item.variable_name,
+                        python_value,
+                    )
+
                 var.update_value(python_value)
-                log.debug(
-                    "Dispatched notification: '%s' = %r",
-                    item.variable_name,
-                    python_value,
-                )
             except Exception as exc:  # noqa: BLE001
                 log.error(
                     "Dispatcher error processing notification for '%s': %s",

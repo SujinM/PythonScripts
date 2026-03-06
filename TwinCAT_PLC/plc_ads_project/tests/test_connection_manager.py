@@ -241,3 +241,110 @@ class TestOpenFailure:
         cm = _make_manager(conn_cfg, reconnect_cfg, heartbeat_cfg)
         with pytest.raises(PLCConnectionError):
             cm.open()
+
+
+# ===========================================================================
+# State callbacks (improvement #3)
+# ===========================================================================
+
+class TestStateCallbacks:
+    """Verify that observers registered via register_state_callback are notified
+    on every connection-state transition."""
+
+    @patch(f"{_PYADS_PATCH_TARGET}.pyads")
+    def test_callback_receives_connected_on_open(
+        self,
+        mock_pyads: MagicMock,
+        conn_cfg: ConnectionConfig,
+        reconnect_cfg: ReconnectConfig,
+        heartbeat_cfg: HeartbeatConfig,
+    ) -> None:
+        _mock_pyads_connection(mock_pyads.Connection)
+        cm = _make_manager(conn_cfg, reconnect_cfg, heartbeat_cfg)
+        received: list[ConnectionState] = []
+        cm.register_state_callback(received.append)
+        cm.open()
+        try:
+            assert ConnectionState.CONNECTED in received
+        finally:
+            cm.close()
+
+    @patch(f"{_PYADS_PATCH_TARGET}.pyads")
+    def test_callback_receives_disconnected_on_close(
+        self,
+        mock_pyads: MagicMock,
+        conn_cfg: ConnectionConfig,
+        reconnect_cfg: ReconnectConfig,
+        heartbeat_cfg: HeartbeatConfig,
+    ) -> None:
+        _mock_pyads_connection(mock_pyads.Connection)
+        cm = _make_manager(conn_cfg, reconnect_cfg, heartbeat_cfg)
+        received: list[ConnectionState] = []
+        cm.register_state_callback(received.append)
+        cm.open()
+        cm.close()
+        assert ConnectionState.DISCONNECTED in received
+
+    @patch(f"{_PYADS_PATCH_TARGET}.pyads")
+    def test_multiple_callbacks_all_notified(
+        self,
+        mock_pyads: MagicMock,
+        conn_cfg: ConnectionConfig,
+        reconnect_cfg: ReconnectConfig,
+        heartbeat_cfg: HeartbeatConfig,
+    ) -> None:
+        _mock_pyads_connection(mock_pyads.Connection)
+        cm = _make_manager(conn_cfg, reconnect_cfg, heartbeat_cfg)
+        log_a: list[ConnectionState] = []
+        log_b: list[ConnectionState] = []
+        cm.register_state_callback(log_a.append)
+        cm.register_state_callback(log_b.append)
+        cm.open()
+        try:
+            assert ConnectionState.CONNECTED in log_a
+            assert ConnectionState.CONNECTED in log_b
+        finally:
+            cm.close()
+
+    @patch(f"{_PYADS_PATCH_TARGET}.pyads")
+    def test_failing_callback_does_not_disrupt_lifecycle(
+        self,
+        mock_pyads: MagicMock,
+        conn_cfg: ConnectionConfig,
+        reconnect_cfg: ReconnectConfig,
+        heartbeat_cfg: HeartbeatConfig,
+    ) -> None:
+        """A callback that raises must not prevent the state transition or
+        prevent subsequent callbacks from firing."""
+        _mock_pyads_connection(mock_pyads.Connection)
+        cm = _make_manager(conn_cfg, reconnect_cfg, heartbeat_cfg)
+        after_bad: list[ConnectionState] = []
+
+        cm.register_state_callback(lambda _s: (_ for _ in ()).throw(RuntimeError("boom")))
+        cm.register_state_callback(after_bad.append)
+
+        cm.open()  # Must not raise despite the bad callback.
+        try:
+            assert cm.is_connected
+            assert ConnectionState.CONNECTED in after_bad
+        finally:
+            cm.close()
+
+    @patch(f"{_PYADS_PATCH_TARGET}.pyads")
+    def test_state_visible_from_within_callback(
+        self,
+        mock_pyads: MagicMock,
+        conn_cfg: ConnectionConfig,
+        reconnect_cfg: ReconnectConfig,
+        heartbeat_cfg: HeartbeatConfig,
+    ) -> None:
+        """Callbacks may safely re-enter cm.state (RLock is reentrant)."""
+        _mock_pyads_connection(mock_pyads.Connection)
+        cm = _make_manager(conn_cfg, reconnect_cfg, heartbeat_cfg)
+        seen_from_callback: list[ConnectionState] = []
+        cm.register_state_callback(lambda _s: seen_from_callback.append(cm.state))
+        cm.open()
+        try:
+            assert ConnectionState.CONNECTED in seen_from_callback
+        finally:
+            cm.close()

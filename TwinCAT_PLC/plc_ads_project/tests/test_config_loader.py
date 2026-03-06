@@ -23,7 +23,8 @@ from pathlib import Path
 
 import pytest
 
-from config.config_loader import ConfigLoader, PLCConfig
+from config.config_loader import ConfigLoader, PLCConfig, SUPPORTED_TYPES
+from core.datatype_converter import PLC_TYPE_MAP
 from utils.custom_exceptions import XMLConfigError
 
 
@@ -268,3 +269,42 @@ class TestFileErrors:
         p.write_text(xml, encoding="utf-8")
         with pytest.raises(XMLConfigError, match="PLCConfig"):
             ConfigLoader.load(str(p))
+
+
+# ---------------------------------------------------------------------------
+# SUPPORTED_TYPES vs. PLC_TYPE_MAP completeness
+# ---------------------------------------------------------------------------
+
+class TestSupportedTypesCompleteness:
+    """
+    Regression guard for the bug where SINT / USINT / LINT / ULINT were
+    present in ``PLC_TYPE_MAP`` (fully implemented) but absent from
+    ``SUPPORTED_TYPES`` (rejected at config-load time with a misleading error).
+
+    If either mapping grows, these tests will catch the discrepancy
+    immediately rather than waiting for a runtime failure.
+    """
+
+    def test_all_plc_type_map_keys_are_in_supported_types(self) -> None:
+        """Every numeric PLC type that has a pyads mapping must be accepted by the loader."""
+        missing = set(PLC_TYPE_MAP.keys()) - SUPPORTED_TYPES
+        assert not missing, (
+            f"Types in PLC_TYPE_MAP but missing from SUPPORTED_TYPES: {missing}. "
+            "Add them to SUPPORTED_TYPES in config_loader.py."
+        )
+
+    def test_no_unknown_types_in_supported_types(self) -> None:
+        """Every type in SUPPORTED_TYPES must either be in PLC_TYPE_MAP or be STRING/ARRAY."""
+        allowed = set(PLC_TYPE_MAP.keys()) | {"STRING", "ARRAY"}
+        unknown = SUPPORTED_TYPES - allowed
+        assert not unknown, (
+            f"Types in SUPPORTED_TYPES but not in PLC_TYPE_MAP or allowed specials: {unknown}."
+        )
+
+    def test_supported_types_equals_plc_type_map_plus_specials(self) -> None:
+        """Symmetric check: SUPPORTED_TYPES == PLC_TYPE_MAP keys ∪ {STRING, ARRAY}."""
+        expected = set(PLC_TYPE_MAP.keys()) | {"STRING", "ARRAY"}
+        assert SUPPORTED_TYPES == expected, (
+            f"Extra in SUPPORTED_TYPES: {SUPPORTED_TYPES - expected}; "
+            f"Extra in expected: {expected - SUPPORTED_TYPES}"
+        )

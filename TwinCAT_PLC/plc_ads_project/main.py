@@ -37,6 +37,7 @@ import os
 import signal
 import sys
 import time
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
@@ -70,6 +71,26 @@ from utils.custom_exceptions import (
 # Module-level logger (populated after setup_logger is called)
 # ---------------------------------------------------------------------------
 log = get_logger(__name__)
+
+
+# ===========================================================================
+# Health report
+# ===========================================================================
+
+@dataclass
+class HealthReport:
+    """
+    Snapshot of :class:`PLCApplication` runtime health.
+
+    Returned by :meth:`PLCApplication.health`.  Suitable for logging,
+    serialisation to JSON, or display in an HMI status panel.
+    """
+    connected: bool
+    connection_state: str
+    active_subscriptions: int
+    queue_depth: int
+    variable_count: int
+    uptime_seconds: float
 
 
 # ===========================================================================
@@ -167,6 +188,7 @@ class PLCApplication:
         self._write_service: Optional[PLCWriteService] = None
 
         self._running: bool = False
+        self._start_time: float = 0.0
 
     # ------------------------------------------------------------------
     # Lifecycle
@@ -182,6 +204,7 @@ class PLCApplication:
         log.info("=" * 60)
         log.info("PLC ADS Application starting")
         log.info("=" * 60)
+        self._start_time = time.monotonic()
 
         # ------------------------------------------------------------------
         # Step 1 – Load configuration
@@ -302,6 +325,41 @@ class PLCApplication:
         log.info("PLC ADS Application stopped cleanly")
         print("\n  Shutdown complete.")
 
+    def health(self) -> HealthReport:
+        """
+        Return a snapshot of the current application runtime health.
+
+        All fields are safe to read from any thread.  No PLC I/O is
+        performed; the report is composed entirely from in-memory state.
+
+        Example::
+
+            report = app.health()
+            print(report.connection_state, report.active_subscriptions)
+        """
+        return HealthReport(
+            connected=(
+                self._conn_manager.is_connected if self._conn_manager else False
+            ),
+            connection_state=(
+                self._conn_manager.state.name
+                if self._conn_manager
+                else "NOT_INITIALISED"
+            ),
+            active_subscriptions=(
+                len(self._notif_manager.active_subscriptions)
+                if self._notif_manager
+                else 0
+            ),
+            queue_depth=(
+                self._notif_manager.queue_depth if self._notif_manager else 0
+            ),
+            variable_count=len(self._registry) if self._registry else 0,
+            uptime_seconds=(
+                time.monotonic() - self._start_time if self._start_time else 0.0
+            ),
+        )
+
     # ------------------------------------------------------------------
     # Poll cycle
     # ------------------------------------------------------------------
@@ -345,7 +403,7 @@ class PLCApplication:
 
         # ---- JSON export ----
         if self._export_json and self._registry:
-            self._export_snapshot_to_json(cycle)
+            self._export_snapshot_to_json()
 
     # ------------------------------------------------------------------
     # Demo writes
@@ -373,14 +431,19 @@ class PLCApplication:
     # JSON export
     # ------------------------------------------------------------------
 
-    def _export_snapshot_to_json(self, cycle: int) -> None:
-        """Write the current registry snapshot to a timestamped JSON file."""
+    def _export_snapshot_to_json(self) -> None:
+        """
+        Overwrite ``snapshot_latest.json`` with the current registry state.
+
+        Writing to a single fixed file (rather than a new timestamped file
+        per cycle) prevents unbounded disk growth at high poll rates while
+        still making the latest values available to external consumers.
+        """
         assert self._registry is not None  # guarded by caller
 
         try:
             os.makedirs(self._export_dir, exist_ok=True)
-            ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
-            file_path = os.path.join(self._export_dir, f"snapshot_{ts}_c{cycle:04d}.json")
+            file_path = os.path.join(self._export_dir, "snapshot_latest.json")
             json_str = self._registry.to_json()
             Path(file_path).write_text(json_str, encoding="utf-8")
             log.debug("Snapshot exported to '%s'", file_path)

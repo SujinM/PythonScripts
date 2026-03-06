@@ -41,7 +41,7 @@ from utils.custom_exceptions import PLCConnectionError, PLCReconnectExhaustedErr
 from utils.logger import get_logger
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
 
 log = get_logger(__name__)
 
@@ -92,6 +92,8 @@ class ConnectionManager:
 
         # Observable state.
         self._state: ConnectionState = ConnectionState.DISCONNECTED
+        # Callbacks invoked on every state transition (see register_state_callback).
+        self._state_callbacks: list[Callable[[ConnectionState], None]] = []
 
         # Reconnect bookkeeping.
         self._reconnect_thread: Optional[threading.Thread] = None
@@ -140,6 +142,46 @@ class ConnectionManager:
         """``True`` when the ADS connection is established and healthy."""
         return self.state == ConnectionState.CONNECTED
 
+    def register_state_callback(
+        self, cb: "Callable[[ConnectionState], None]"
+    ) -> None:
+        """
+        Register a callable that is invoked whenever the connection state
+        changes.
+
+        The callback receives the new :class:`ConnectionState` as its sole
+        argument.  Exceptions raised by the callback are swallowed and
+        logged as warnings so that a misbehaving observer cannot disrupt the
+        connection lifecycle.
+
+        Example::
+
+            cm.register_state_callback(
+                lambda s: print(f"Connection state → {s.name}")
+            )
+        """
+        with self._lock:
+            self._state_callbacks.append(cb)
+
+    def _set_state(self, new_state: ConnectionState) -> None:
+        """
+        Assign *new_state* and notify all registered callbacks.
+
+        Must be called while ``_lock`` is held (or from a context where only
+        one thread is active for the transition).  Because ``_lock`` is a
+        :class:`threading.RLock`, callbacks that re-enter
+        :class:`ConnectionManager` methods (e.g. reading
+        :attr:`state`) will not deadlock.
+        """
+        self._state = new_state
+        # Snapshot the list under the lock so additions during iteration are safe.
+        callbacks = list(self._state_callbacks)
+        for cb in callbacks:
+            try:
+                cb(new_state)
+            except Exception as exc:  # noqa: BLE001
+                log.warning("State callback raised an exception: %s", exc)
+
     # ------------------------------------------------------------------
     # Lifecycle
     # ------------------------------------------------------------------
@@ -172,7 +214,7 @@ class ConnectionManager:
 
         with self._lock:
             self._do_close()
-            self._state = ConnectionState.DISCONNECTED
+            self._set_state(ConnectionState.DISCONNECTED)
 
     # ------------------------------------------------------------------
     # Context manager
@@ -234,7 +276,7 @@ class ConnectionManager:
             ) from exc
 
         self._plc = plc
-        self._state = ConnectionState.CONNECTED
+        self._set_state(ConnectionState.CONNECTED)
         log.info("ADS connection established: AMS=%s Port=%d", ams_id, port)
 
         # Start watchdog *after* the connection is open.
@@ -304,7 +346,7 @@ class ConnectionManager:
             if self._state in (ConnectionState.RECONNECTING, ConnectionState.FAILED):
                 return  # Already in progress.
             self._do_close()
-            self._state = ConnectionState.RECONNECTING
+            self._set_state(ConnectionState.RECONNECTING)
 
         self._stop_watchdog()
         self._start_reconnect_loop()
@@ -378,7 +420,7 @@ class ConnectionManager:
             # Check max attempts limit.
             if cfg.max_attempts > 0 and attempt >= cfg.max_attempts:
                 with self._lock:
-                    self._state = ConnectionState.FAILED
+                    self._set_state(ConnectionState.FAILED)
                 raise PLCReconnectExhaustedError(
                     f"Exhausted {attempt} reconnect attempt(s) to {self._conn_cfg.ams_net_id}.",
                     attempts=attempt,
