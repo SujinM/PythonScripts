@@ -1,11 +1,10 @@
 """
 graph_panel.py
 ──────────────
-Real-time voltage and current strip-chart panel using pyqtgraph.
+Real-time voltage strip-chart panel using pyqtgraph.
 
-Two vertically stacked plots share a linked X axis so panning one
-synchronises the other.  A rolling deque keeps the last GRAPH_MAX_POINTS
-samples; a time-window combo-box clips the visible range.
+A rolling deque keeps the last GRAPH_MAX_POINTS samples;
+a time-window combo-box clips the visible range.
 """
 
 from __future__ import annotations
@@ -82,19 +81,14 @@ class GraphPopupWindow(QDialog):
             return p, curve
 
         self._v_plot, self._v_curve = _make_plot(0, "Voltage", "V", "#a6e3a1", 500)
-        self._a_plot, self._a_curve = _make_plot(1, "Current", "A", "#89b4fa", 100)
-        self._a_plot.setXLink(self._v_plot)
+        self._v_plot.setLabel("bottom", "Elapsed time", units="s")
         self._gw.ci.layout.setRowStretchFactor(0, 1)
-        self._gw.ci.layout.setRowStretchFactor(1, 1)
 
         # Crosshairs
         dash_pen = pg.mkPen(color="#6c7086", width=1.5, dash=[4, 4])
         self._v_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
-        self._a_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
         self._v_plot.addItem(self._v_vline, ignoreBounds=True)
-        self._a_plot.addItem(self._a_vline, ignoreBounds=True)
         self._v_vline.hide()
-        self._a_vline.hide()
         self._gw.scene().sigMouseMoved.connect(self._mouse_moved)
 
         # Hover label
@@ -128,7 +122,6 @@ class GraphPopupWindow(QDialog):
             return
         t_arr = list(self._source._t)
         v_arr = list(self._source._v)
-        a_arr = list(self._source._a)
 
         ws = self._source._window_s
         if ws > 0 and t_arr:
@@ -136,10 +129,8 @@ class GraphPopupWindow(QDialog):
             start = next((i for i, t in enumerate(t_arr) if t >= cutoff), 0)
             t_arr = t_arr[start:]
             v_arr = v_arr[start:]
-            a_arr = a_arr[start:]
 
         self._v_curve.setData(t_arr, v_arr)
-        self._a_curve.setData(t_arr, a_arr)
 
         if t_arr and ws > 0:
             x_max = t_arr[-1]
@@ -147,28 +138,18 @@ class GraphPopupWindow(QDialog):
 
     @pyqtSlot(object)
     def _mouse_moved(self, pos) -> None:
-        active_plot = None
-        if self._v_plot.sceneBoundingRect().contains(pos):
-            mouse_point = self._v_plot.vb.mapSceneToView(pos)
-            active_plot = mouse_point
-        elif self._a_plot.sceneBoundingRect().contains(pos):
-            mouse_point = self._a_plot.vb.mapSceneToView(pos)
-            active_plot = mouse_point
-
-        if active_plot is None:
+        if not self._v_plot.sceneBoundingRect().contains(pos):
             self._v_vline.hide()
-            self._a_vline.hide()
             self._hover_lbl.setText("")
             return
 
-        x_val = active_plot.x()
+        mouse_point = self._v_plot.vb.mapSceneToView(pos)
+        x_val = mouse_point.x()
         t_arr = list(self._source._t)
         v_arr = list(self._source._v)
-        a_arr = list(self._source._a)
 
         if not t_arr or x_val < t_arr[0] or x_val > t_arr[-1]:
             self._v_vline.hide()
-            self._a_vline.hide()
             self._hover_lbl.setText("")
             return
 
@@ -179,11 +160,9 @@ class GraphPopupWindow(QDialog):
                 idx -= 1
 
         self._v_vline.setPos(t_arr[idx])
-        self._a_vline.setPos(t_arr[idx])
         self._v_vline.show()
-        self._a_vline.show()
         self._hover_lbl.setText(
-            f" t={t_arr[idx]:.1f}s | V={v_arr[idx]:.1f} V | I={a_arr[idx]:.2f} A "
+            f" t={t_arr[idx]:.1f}s | V={v_arr[idx]:.1f} V "
         )
 
     def closeEvent(self, event) -> None:
@@ -199,13 +178,13 @@ class GraphPopupWindow(QDialog):
 
 
 class GraphPanel(QWidget):
-    """Rolling voltage / current strip-chart.
+    """Rolling voltage strip-chart.
 
     Public API
     ~~~~~~~~~~
-    append(voltage, current)  -- push a new sample (call from poll handler)
-    clear()                   -- discard all data and reset time origin
-    reset_time_origin()       -- alias for clear(); call on new connection
+    append(voltage)       -- push a new sample (call from poll handler)
+    clear()               -- discard all data and reset time origin
+    reset_time_origin()   -- alias for clear(); call on new connection
     """
 
     def __init__(self, parent: Optional[QWidget] = None) -> None:
@@ -217,10 +196,10 @@ class GraphPanel(QWidget):
         # ── Data buffers ──────────────────────────────────────────────────────
         self._t: deque[float] = deque(maxlen=GRAPH_MAX_POINTS)
         self._v: deque[float] = deque(maxlen=GRAPH_MAX_POINTS)
-        self._a: deque[float] = deque(maxlen=GRAPH_MAX_POINTS)
         self._t0: float = time.monotonic()
         self._paused: bool = False
         self._window_s: int = 60
+        self._popup_win: Optional["GraphPopupWindow"] = None
 
         # ── pyqtgraph setup ───────────────────────────────────────────────────
         pg.setConfigOptions(antialias=True)
@@ -246,42 +225,26 @@ class GraphPanel(QWidget):
                 axis.setPen(pg.mkPen(color="#555555", width=1))
                 axis.setTextPen(pg.mkPen(color="#aaaaaa"))
 
-        # Voltage plot (top)
+        # Voltage plot
         self._v_plot: pg.PlotItem = self._gw.addPlot(row=0, col=0)
         self._v_plot.setLabel("left", "Voltage", units="V")
+        self._v_plot.setLabel("bottom", "Elapsed time", units="s")
         style_plot(self._v_plot)
-        self._v_plot.setYRange(0, 500, padding=0)
-        self._v_plot.setLimits(yMin=0, yMax=500)
+        self._v_plot.setYRange(0, 600, padding=0)
+        self._v_plot.setLimits(yMin=0, yMax=600)
         self._v_curve = self._v_plot.plot(
             pen=pg.mkPen(color="#2ecc71", width=2.5),
             name="Voltage",
         )
 
-        # Current plot (bottom) — X axis linked to voltage plot
-        self._a_plot: pg.PlotItem = self._gw.addPlot(row=1, col=0)
-        self._a_plot.setLabel("left", "Current", units="A")
-        self._a_plot.setLabel("bottom", "Elapsed time", units="s")
-        style_plot(self._a_plot)
-        self._a_plot.setYRange(0, 100, padding=0)
-        self._a_plot.setLimits(yMin=0, yMax=100)
-        self._a_plot.setXLink(self._v_plot)
-        self._a_curve = self._a_plot.plot(
-            pen=pg.mkPen(color="#3498db", width=2.5),
-            name="Current",
-        )
-
-        self._gw.ci.layout.setSpacing(15)
+        self._gw.ci.layout.setSpacing(0)
         self._gw.ci.layout.setRowStretchFactor(0, 1)
-        self._gw.ci.layout.setRowStretchFactor(1, 1)
 
         # ── Crosshairs ────────────────────────────────────────────────────────
         dash_pen = pg.mkPen(color="#888888", width=1.5, dash=[4, 4])
         self._v_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
-        self._a_vline = pg.InfiniteLine(angle=90, movable=False, pen=dash_pen)
         self._v_plot.addItem(self._v_vline, ignoreBounds=True)
-        self._a_plot.addItem(self._a_vline, ignoreBounds=True)
         self._v_vline.hide()
-        self._a_vline.hide()
 
         self._gw.scene().sigMouseMoved.connect(self._mouse_moved)
 
@@ -327,8 +290,6 @@ class GraphPanel(QWidget):
         self._expand_btn.clicked.connect(self._toggle_popup)
         bar.addWidget(self._expand_btn)
 
-        self._popup_win: Optional[GraphPopupWindow] = None
-
         bar_widget = QWidget()
         bar_widget.setLayout(bar)
 
@@ -341,26 +302,22 @@ class GraphPanel(QWidget):
 
     # ── Public API ────────────────────────────────────────────────────────────
 
-    def append(self, voltage: float | None, current: float | None) -> None:
-        """Push a voltage/current sample.  Silently ignored when paused."""
+    def append(self, voltage: float | None) -> None:
+        """Push a voltage sample.  Silently ignored when paused."""
         if self._paused:
             return
         v = float(voltage) if voltage is not None else float("nan")
-        a = float(current) if current is not None else float("nan")
         t = time.monotonic() - self._t0
         self._t.append(t)
         self._v.append(v)
-        self._a.append(a)
         self._redraw()
 
     def clear(self) -> None:
         """Discard all buffered samples and reset the time origin."""
         self._t.clear()
         self._v.clear()
-        self._a.clear()
         self._t0 = time.monotonic()
         self._v_curve.setData([], [])
-        self._a_curve.setData([], [])
 
     def reset_time_origin(self) -> None:
         """Restart time origin; call whenever a new ADS connection is made."""
@@ -394,29 +351,23 @@ class GraphPanel(QWidget):
         if self._v_plot.sceneBoundingRect().contains(pos):
             mouse_point = self._v_plot.vb.mapSceneToView(pos)
             self._update_hover(mouse_point.x())
-        elif self._a_plot.sceneBoundingRect().contains(pos):
-            mouse_point = self._a_plot.vb.mapSceneToView(pos)
-            self._update_hover(mouse_point.x())
         else:
             self._v_vline.hide()
-            self._a_vline.hide()
             self._hover_label.setText("")
 
     def _update_hover(self, x_val: float) -> None:
         """Find the closest data point and update the UI."""
         if not self._t:
             return
-            
+
         t_arr = list(self._t)
         v_arr = list(self._v)
-        a_arr = list(self._a)
-        
+
         if not t_arr or x_val < t_arr[0] or x_val > t_arr[-1]:
             self._v_vline.hide()
-            self._a_vline.hide()
             self._hover_label.setText("")
             return
-            
+
         idx = bisect.bisect_left(t_arr, x_val)
         if idx == 0:
             idx = 0
@@ -425,17 +376,13 @@ class GraphPanel(QWidget):
         else:
             if abs(x_val - t_arr[idx - 1]) < abs(x_val - t_arr[idx]):
                 idx = idx - 1
-                
+
         actual_t = t_arr[idx]
         v_val = v_arr[idx]
-        a_val = a_arr[idx]
-        
+
         self._v_vline.setPos(actual_t)
-        self._a_vline.setPos(actual_t)
         self._v_vline.show()
-        self._a_vline.show()
-        
-        self._hover_label.setText(f" Time: {actual_t:.1f}s | Volts: {v_val:.1f} V | Curr: {a_val:.2f} A ")
+        self._hover_label.setText(f" Time: {actual_t:.1f}s | Voltage: {v_val:.1f} V ")
 
     # ── Private helpers ───────────────────────────────────────────────────────
 
@@ -444,17 +391,14 @@ class GraphPanel(QWidget):
             return
         t_arr = list(self._t)
         v_arr = list(self._v)
-        a_arr = list(self._a)
 
         if self._window_s > 0 and t_arr:
             cutoff = t_arr[-1] - self._window_s
             start = next((i for i, t in enumerate(t_arr) if t >= cutoff), 0)
             t_arr = t_arr[start:]
             v_arr = v_arr[start:]
-            a_arr = a_arr[start:]
 
         self._v_curve.setData(t_arr, v_arr)
-        self._a_curve.setData(t_arr, a_arr)
 
         # Auto-scroll X to keep the latest data in view
         if t_arr and self._window_s > 0:

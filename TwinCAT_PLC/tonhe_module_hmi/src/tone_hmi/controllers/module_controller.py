@@ -25,6 +25,8 @@ from tone_hmi.constants import (
     VAR_START, VAR_STOP, VAR_CLEAR_FAULT, VAR_MODULE_RUNNING,
     VAR_STATUS_TEXT, VAR_TARGET_VOLTAGE, VAR_TARGET_CURRENT, VAR_UPDATE_VI,
     VAR_MODULE_ADDRESS, VAR_MASTER_ADDRESS, VAR_RETRY_COUNT, VAR_MAX_RETRIES,
+    VAR_ENABLE_RAMP, VAR_RAMP_STEP, VAR_RAMP_TIME_MS,
+    VAR_RAMP_CURR_VOLT, VAR_RAMP_COMPLETE,
 )
 from tone_hmi.workers.poll_worker import PollWorker
 
@@ -95,10 +97,14 @@ class ModuleController(QObject):
         if self._graph_panel:
             self._graph_panel.reset_time_origin()
         self._start_poll()
-        # Pre-fill setpoints from PLC
+        # Pre-fill setpoints and ramp settings from PLC
         v_raw = self._ctx.read_variable(VAR_TARGET_VOLTAGE)
         a_raw = self._ctx.read_variable(VAR_TARGET_CURRENT)
         self._setpoint_panel.populate_setpoints(v_raw, a_raw)
+        enable_ramp = self._ctx.read_variable(VAR_ENABLE_RAMP)
+        ramp_step   = self._ctx.read_variable(VAR_RAMP_STEP)
+        ramp_time   = self._ctx.read_variable(VAR_RAMP_TIME_MS)
+        self._setpoint_panel.populate_ramp_settings(enable_ramp, ramp_step, ramp_time)
         self.status_message.emit("Connected – polling started")
 
     @pyqtSlot()
@@ -145,6 +151,7 @@ class ModuleController(QObject):
         # Setpoint live readback
         self._setpoint_panel.update_live_voltage(r(VAR_MODULE_VOLTAGE))
         self._setpoint_panel.update_live_current(r(VAR_MODULE_CURRENT))
+        self._setpoint_panel.update_live_ramp_voltage(r(VAR_RAMP_CURR_VOLT))
 
         # Phase info
         self._phase_panel.update_phases(
@@ -170,9 +177,9 @@ class ModuleController(QObject):
         )
         self._control_panel.update_retries(r(VAR_RETRY_COUNT), r(VAR_MAX_RETRIES))
 
-        # Graph panel — voltage and current trend
+        # Graph panel — voltage trend
         if self._graph_panel:
-            self._graph_panel.append(r(VAR_MODULE_VOLTAGE), r(VAR_MODULE_CURRENT))
+            self._graph_panel.append(r(VAR_MODULE_VOLTAGE))
 
     @pyqtSlot(str)
     def _on_poll_error(self, msg: str) -> None:
@@ -208,20 +215,32 @@ class ModuleController(QObject):
         except Exception as exc:
             self.error_occurred.emit(f"Clear fault failed: {exc}")
 
-    @pyqtSlot(int, int)
-    def _on_apply_setpoint(self, voltage_raw: int, current_raw: int) -> None:
+    @pyqtSlot(int, int, bool, int, int)
+    def _on_apply_setpoint(
+        self,
+        voltage_raw: int,
+        current_raw: int,
+        enable_ramp: bool,
+        ramp_step_raw: int,
+        ramp_time_ms: int,
+    ) -> None:
         try:
             self._ctx.write_variable(VAR_TARGET_VOLTAGE, voltage_raw)
             self._ctx.write_variable(VAR_TARGET_CURRENT, current_raw)
+            self._ctx.write_variable(VAR_ENABLE_RAMP, enable_ramp)
+            self._ctx.write_variable(VAR_RAMP_STEP, ramp_step_raw)
+            self._ctx.write_variable(VAR_RAMP_TIME_MS, ramp_time_ms)
             self._ctx.write_variable(VAR_UPDATE_VI, True)
             v_display = voltage_raw / 10
             a_display = current_raw / 100
+            step_display = ramp_step_raw / 10
             log.info(
-                "Setpoint written: %.1f V  /  %.2f A  (raw %d / %d)",
-                v_display, a_display, voltage_raw, current_raw,
+                "Setpoint written: %.1f V / %.2f A  ramp=%s step=%.1f V time=%d ms",
+                v_display, a_display, enable_ramp, step_display, ramp_time_ms,
             )
             self.status_message.emit(
-                f"Setpoint applied: {v_display:.1f} V  /  {a_display:.2f} A"
+                f"Setpoint applied: {v_display:.1f} V / {a_display:.2f} A"
+                + (f"  ramp: {step_display:.1f} V every {ramp_time_ms} ms" if enable_ramp else "")
             )
         except Exception as exc:
             self.error_occurred.emit(f"Setpoint write failed: {exc}")

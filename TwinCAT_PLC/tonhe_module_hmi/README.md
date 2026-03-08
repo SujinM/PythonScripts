@@ -30,8 +30,7 @@ pyqtgraph ≥ 0.13  (future graph panel)
 pip install -r requirements.txt
 python app.py
 
-# MOCK ADS
-MOCK_ADS=1 python app.py
+# MOCK ADS (PowerShell)
 $env:MOCK_ADS=1; python app.py
 
 # Build

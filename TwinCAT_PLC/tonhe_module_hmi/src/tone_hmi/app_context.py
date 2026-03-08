@@ -71,6 +71,7 @@ class AppContext:
 
         self.read_service = PLCReadService(self.ads_client, self.registry)
         self.write_service = PLCWriteService(self.ads_client, self.registry)
+        self._mock_mode = os.environ.get("MOCK_ADS") == "1"
 
         self.is_loaded = True
 
@@ -85,13 +86,20 @@ class AppContext:
     # ── Convenience helpers ───────────────────────────────────────────────────
 
     def read_variable(self, name: str):
-        """Return the cached value of a PLC variable, or None."""
+        """Return the cached value of a PLC variable, or None if not registered."""
         if not self.registry:
             return None
-        var = self.registry.get(name)
+        var = self.registry.get_optional(name)
         return var.current_value if var else None
 
     def write_variable(self, name: str, value) -> None:
-        """Write *value* to a PLC variable by name."""
-        if self.write_service:
-            self.write_service.write_variable(name, value)
+        """Write *value* to a PLC variable by name.  Silently ignores unknown names."""
+        if not self.write_service:
+            return
+        # In mock mode the registry may not contain every symbol —
+        # write directly through the client so commands always reach the
+        # mock state machine regardless of what the registry holds.
+        if getattr(self, "_mock_mode", False):
+            self.ads_client.write_by_name(name, value, None)
+        else:
+            self.write_service.write_variable_safe(name, value)

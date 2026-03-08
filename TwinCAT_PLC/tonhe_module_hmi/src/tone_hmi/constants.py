@@ -78,35 +78,56 @@ SETTING_LOG_VISIBLE: str = "window/log_visible"
 
 # ── ToneModule-specific PLC variable names ────────────────────────────────────
 # These are the ADS symbol paths used throughout the controllers.
-VAR_MODULE_STATUS = "GVL.nModuleStatus"
-VAR_MODULE_VOLTAGE = "GVL.nModuleVoltage"
-VAR_MODULE_CURRENT = "GVL.nModuleCurrent"
-VAR_MODULE_FAULTS = "GVL.wModuleFaults"
-VAR_PFC_FAULTS = "GVL.nModulePfcFaults"
-VAR_MODULE_FAULT = "GVL.bModuleFault"
-VAR_STATUS_RECEIVED = "GVL.bModuleStatusReceived"
-VAR_ACK_RECEIVED = "GVL.bAckReceived"
-VAR_PHASE_A = "GVL.nPhaseVoltageA"
-VAR_PHASE_B = "GVL.nPhaseVoltageB"
-VAR_PHASE_C = "GVL.nPhaseVoltageC"
-VAR_TEMPERATURE = "GVL.nAmbientTemperature"
-VAR_STATUS_BITS = "GVL.wModuleStatusBits"
-VAR_EXT_FAULTS = "GVL.wModuleExtFaultWarningBits"
-VAR_RX_FRAME_COUNT = "GVL.nRxFrameCount"
-VAR_LAST_COB_ID = "GVL.nLastRxCobId"
+# All status variables live in MAIN.stStatus (populated by FB_Tonhe30kW_Module).
+# All command / setpoint variables live in MAIN.stSettings.
+# CAN-layer diagnostics are read from MAIN.fbComm.
+# FB internals (retry counters) are read from MAIN.fbModule.
 
-VAR_START = "MAIN.bStartModule"
-VAR_STOP = "MAIN.bStopModule"
-VAR_CLEAR_FAULT = "MAIN.bClearFault"
-VAR_MODULE_RUNNING = "MAIN.bModuleRunning"
-VAR_STATUS_TEXT = "MAIN.sStatusText"
-VAR_TARGET_VOLTAGE = "MAIN.nTargetVoltage"
-VAR_TARGET_CURRENT = "MAIN.nTargetCurrent"
-VAR_UPDATE_VI = "MAIN.bUpdateVI"
-VAR_MODULE_ADDRESS = "MAIN.nModuleAddress"
-VAR_MASTER_ADDRESS = "MAIN.nMasterAddress"
-VAR_RETRY_COUNT = "MAIN.nRetryCount"
-VAR_MAX_RETRIES = "MAIN.nMaxRetries"
+# Status readbacks (MAIN.stStatus)
+VAR_MODULE_STATUS   = "MAIN.stStatus.nModuleState"
+VAR_MODULE_VOLTAGE  = "MAIN.stStatus.rActualVoltage"
+VAR_MODULE_CURRENT  = "MAIN.stStatus.rActualCurrent"
+VAR_MODULE_FAULTS   = "MAIN.stStatus.wFaultBits"
+VAR_PFC_FAULTS      = "MAIN.stStatus.nPfcFaultBits"
+VAR_MODULE_FAULT    = "MAIN.stStatus.bModuleFault"
+VAR_ACK_RECEIVED    = "MAIN.stStatus.bAckReceived"
+VAR_PHASE_A         = "MAIN.stStatus.rPhaseVoltageA"
+VAR_PHASE_B         = "MAIN.stStatus.rPhaseVoltageB"
+VAR_PHASE_C         = "MAIN.stStatus.rPhaseVoltageC"
+VAR_TEMPERATURE     = "MAIN.stStatus.nTemperature"
+VAR_STATUS_BITS     = "MAIN.stStatus.wStatusBits"
+VAR_EXT_FAULTS      = "MAIN.stStatus.wExtFaultWarningBits"
+VAR_MODULE_RUNNING  = "MAIN.stStatus.bModuleRunning"
+VAR_STATUS_TEXT     = "MAIN.stStatus.sStatusText"
+VAR_CONTROL_STATE   = "MAIN.stStatus.eControlState"
+VAR_RAMP_CURR_VOLT  = "MAIN.stStatus.nRampCurrentVoltage"
+VAR_RAMP_COMPLETE   = "MAIN.stStatus.bRampComplete"
+
+# CAN communication diagnostics (MAIN.fbComm)
+VAR_STATUS_RECEIVED = "MAIN.fbComm.bStatusReceived"
+VAR_RX_FRAME_COUNT  = "MAIN.fbComm.nRxFrameCount"
+VAR_LAST_COB_ID     = "MAIN.fbComm.nLastRxCobId"
+
+# Control commands — rising-edge triggered (MAIN.stSettings)
+VAR_START           = "MAIN.stSettings.bEnableModule"
+VAR_STOP            = "MAIN.stSettings.bDisableModule"
+VAR_CLEAR_FAULT     = "MAIN.stSettings.bClearFault"
+VAR_UPDATE_VI       = "MAIN.stSettings.bUpdateSetpoint"
+
+# Setpoints (MAIN.stSettings)
+VAR_TARGET_VOLTAGE  = "MAIN.stSettings.nTargetVoltage"
+VAR_TARGET_CURRENT  = "MAIN.stSettings.nTargetCurrent"
+VAR_MODULE_ADDRESS  = "MAIN.stSettings.nModuleAddress"
+VAR_MASTER_ADDRESS  = "MAIN.stSettings.nMasterAddress"
+
+# Voltage ramp / soft-start (MAIN.stSettings)
+VAR_ENABLE_RAMP     = "MAIN.stSettings.bEnableRamp"
+VAR_RAMP_STEP       = "MAIN.stSettings.nRampVoltageStep"
+VAR_RAMP_TIME_MS    = "MAIN.stSettings.tRampStepTime"   # TIME stored as DWORD ms
+
+# FB_Tonhe30kW_Module internals — diagnostic read-only (MAIN.fbModule)
+VAR_RETRY_COUNT     = "MAIN.fbModule.nRetryCount"
+VAR_MAX_RETRIES     = "MAIN.fbModule.nMaxRetries"
 
 # ── Graph panel ───────────────────────────────────────────────────────────────
 GRAPH_MAX_POINTS: int = 1200      # 6 min of history at 300 ms/sample

@@ -126,11 +126,31 @@ class AppController(QObject):
     def _try_restore_config(self) -> None:
         settings = QSettings(ORG_NAME, APP_NAME)
         path = settings.value(SETTING_CONFIG_PATH, "")
+
+        # 1. Try the previously remembered path first
         if path:
             try:
                 self._load_config(path)
+                return
             except Exception:
-                pass
+                log.warning("Saved config path failed, falling back to default: %s", path)
+
+        # 2. Fall back to the default config bundled next to the app
+        from pathlib import Path
+        default_config = (
+            Path(__file__).resolve()
+            .parent   # controllers/
+            .parent   # tone_hmi/
+            .parent   # src/
+            .parent   # tonhe_module_hmi/
+            / "config"
+            / "tone_config.xml"
+        )
+        if default_config.exists():
+            try:
+                self._load_config(str(default_config))
+            except Exception:
+                log.warning("Default config also failed to load: %s", default_config)
 
     def teardown(self) -> None:
         self._mod_ctrl.teardown()
