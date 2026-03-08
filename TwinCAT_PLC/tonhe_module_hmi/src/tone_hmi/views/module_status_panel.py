@@ -170,6 +170,7 @@ class ModuleStatusPanel(QGroupBox):
         # Flags row
         flags_row = QHBoxLayout()
         flags_row.setSpacing(8)
+        flags_row.setContentsMargins(4, 0, 0, 0)
         for flag in (self._flag_running, self._flag_status_rx,
                      self._flag_ack_rx, self._flag_fault):
             flags_row.addWidget(flag)
@@ -178,6 +179,8 @@ class ModuleStatusPanel(QGroupBox):
         flags_row.addStretch()
 
         # Metric cards
+        self._voltage_card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
+        self._current_card.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Fixed)
         metrics_row = QHBoxLayout()
         metrics_row.setSpacing(12)
         metrics_row.addWidget(self._voltage_card)
@@ -185,6 +188,7 @@ class ModuleStatusPanel(QGroupBox):
 
         # Status text box
         status_group = QGroupBox("PLC Status Message")
+        status_group.setSizePolicy(QSizePolicy.Policy.Preferred, QSizePolicy.Policy.Maximum)
         sl = QVBoxLayout(status_group)
         sl.addWidget(self._status_text)
 
@@ -197,6 +201,7 @@ class ModuleStatusPanel(QGroupBox):
         vbox.addWidget(_make_separator())
         vbox.addLayout(flags_row)
         vbox.addWidget(status_group)
+        vbox.addStretch()
 
     # ── Public update API (called by ModuleController) ────────────────────────
 

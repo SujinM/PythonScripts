@@ -32,10 +32,7 @@ class AboutDialog(QDialog):
         version_label.setAlignment(Qt.AlignmentFlag.AlignCenter)
 
         desc = QLabel(
-            "PyQt6 HMI for TONHE V1.3 CAN charging modules<br>"
-            "communicating via TwinCAT 3 ADS (AMS/TCP) protocol.<br><br>"
-            "Supports: Start / Stop / Clear Fault, setpoint adjustment,<br>"
-            "live voltage / current monitoring and fault diagnostics."
+            "HMI for TONHE CAN charging modules via TwinCAT 3 ADS."
         )
         desc.setAlignment(Qt.AlignmentFlag.AlignCenter)
         desc.setWordWrap(True)
