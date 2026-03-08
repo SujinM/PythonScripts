@@ -87,6 +87,13 @@ if errorlevel 1 (
 REM ── Tidy up runtime hook temp file ───────────────────────────────────────
 if exist "_rthook_plc_ads.py" del /q "_rthook_plc_ads.py"
 
+REM ── Rename _internal → HMI if PyInstaller ignored contents_directory ─────
+if exist "dist\ToneHMI\_internal" (
+    if exist "dist\ToneHMI\HMI" rd /s /q "dist\ToneHMI\HMI"
+    ren "dist\ToneHMI\_internal" "HMI"
+    echo [OK]   Renamed _internal ^-^> HMI
+)
+
 REM ── Report ────────────────────────────────────────────────────────────────
 echo.
 echo =============================================================================
