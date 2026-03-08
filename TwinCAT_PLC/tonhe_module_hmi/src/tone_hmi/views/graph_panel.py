@@ -63,16 +63,15 @@ class GraphPopupWindow(QDialog):
         self._gw.ci.layout.setContentsMargins(14, 14, 14, 14)
         self._gw.ci.layout.setSpacing(16)
 
-        def _make_plot(row, label, unit, color, y_max):
+        def _make_plot(row, label, unit, color):
             p = self._gw.addPlot(row=row, col=0)
             p.setLabel("left", label, units=unit)
             if row == 1:
                 p.setLabel("bottom", "Elapsed time", units="s")
             p.showGrid(x=True, y=True, alpha=0.12)
-            p.setMouseEnabled(x=True, y=False)
-            p.disableAutoRange(axis=pg.ViewBox.YAxis)
-            p.setYRange(0, y_max, padding=0)
-            p.setLimits(yMin=0, yMax=y_max, xMin=0)
+            p.setMouseEnabled(x=True, y=True)  # right-drag = box zoom
+            p.enableAutoRange(axis=pg.ViewBox.YAxis)
+            p.setLimits(yMin=0, xMin=0)
             for ax in ['left', 'bottom']:
                 a = p.getAxis(ax)
                 a.setPen(pg.mkPen(color="#45475a", width=1))
@@ -80,7 +79,7 @@ class GraphPopupWindow(QDialog):
             curve = p.plot(pen=pg.mkPen(color=color, width=2.5))
             return p, curve
 
-        self._v_plot, self._v_curve = _make_plot(0, "Voltage", "V", "#a6e3a1", 500)
+        self._v_plot, self._v_curve = _make_plot(0, "Voltage", "V", "#a6e3a1")
         self._v_plot.setLabel("bottom", "Elapsed time", units="s")
         self._gw.ci.layout.setRowStretchFactor(0, 1)
 
@@ -215,9 +214,9 @@ class GraphPanel(QWidget):
         # Common axis styling function
         def style_plot(plot: pg.PlotItem):
             plot.showGrid(x=True, y=True, alpha=0.15)
-            plot.setMouseEnabled(x=True, y=False)  # Allow X panning, but fix Y auto-scaling behavior
-            plot.disableAutoRange(axis=pg.ViewBox.YAxis)  # Disable auto-range to use fixed boundaries
-            plot.setLimits(xMin=0)  # X-axis always starts at 0 
+            plot.setMouseEnabled(x=True, y=True)  # right-drag = box zoom, scroll = zoom X
+            plot.enableAutoRange(axis=pg.ViewBox.YAxis)  # Y scales to data automatically
+            plot.setLimits(xMin=0, yMin=0)  # never scroll below 0
             
             # Style axis lines
             for axis_name in ['left', 'bottom']:
@@ -230,8 +229,6 @@ class GraphPanel(QWidget):
         self._v_plot.setLabel("left", "Voltage", units="V")
         self._v_plot.setLabel("bottom", "Elapsed time", units="s")
         style_plot(self._v_plot)
-        self._v_plot.setYRange(0, 600, padding=0)
-        self._v_plot.setLimits(yMin=0, yMax=600)
         self._v_curve = self._v_plot.plot(
             pen=pg.mkPen(color="#2ecc71", width=2.5),
             name="Voltage",
@@ -284,6 +281,12 @@ class GraphPanel(QWidget):
         self._clear_btn.clicked.connect(self.clear)
         bar.addWidget(self._clear_btn)
 
+        self._reset_zoom_btn = QPushButton("⟳  Reset Zoom")
+        self._reset_zoom_btn.setObjectName("btnResetZoom")
+        self._reset_zoom_btn.setToolTip("Reset zoom / pan to default view")
+        self._reset_zoom_btn.clicked.connect(self._reset_zoom)
+        bar.addWidget(self._reset_zoom_btn)
+
         self._expand_btn = QPushButton("⛶")
         self._expand_btn.setObjectName("btnExpandGraph")
         self._expand_btn.setToolTip("Open graph in larger popup window")
@@ -334,6 +337,13 @@ class GraphPanel(QWidget):
     def _on_pause_toggled(self, checked: bool) -> None:
         self._paused = checked
         self._pause_btn.setText("▶  Resume" if checked else "⏸  Pause")
+
+    @pyqtSlot()
+    def _reset_zoom(self) -> None:
+        """Reset X/Y zoom back to auto-range."""
+        self._v_plot.enableAutoRange()
+        if self._t and self._window_s > 0:
+            self._redraw()
 
     @pyqtSlot()
     def _toggle_popup(self) -> None:

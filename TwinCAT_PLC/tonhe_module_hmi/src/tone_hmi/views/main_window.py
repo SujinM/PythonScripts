@@ -47,7 +47,7 @@ from tone_hmi.constants import (
     WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
     STATUS_CONNECTED, STATUS_DISCONNECTED,
     SETTING_WINDOW_GEOMETRY, SETTING_WINDOW_STATE, SETTING_SPLITTER_STATE,
-    SETTING_VIEW_PAGE, SETTING_LOG_VISIBLE,
+    SETTING_VIEW_PAGE,
 )
 from tone_hmi.views.connection_panel import ConnectionPanel
 from tone_hmi.views.module_status_panel import ModuleStatusPanel
@@ -182,8 +182,8 @@ class MainWindow(QMainWindow):
 
         self._act_log = QAction("📋  Log", self)
         self._act_log.setCheckable(True)
-        self._act_log.setChecked(True)
-        self._act_log.setToolTip("Show / hide the event log panel")
+        self._act_log.setChecked(False)
+        self._act_log.setToolTip("Switch to the Logs tab")
         self._act_log.triggered.connect(self._toggle_log)
         tb.addAction(self._act_log)
 
@@ -228,8 +228,15 @@ class MainWindow(QMainWindow):
         self._btn_details_tab.setMinimumHeight(32)
         self._btn_details_tab.clicked.connect(lambda: self._switch_view(1))
 
+        self._btn_logs_tab = QPushButton("📋  Logs")
+        self._btn_logs_tab.setObjectName("tabBtnLogs")
+        self._btn_logs_tab.setCheckable(True)
+        self._btn_logs_tab.setMinimumHeight(32)
+        self._btn_logs_tab.clicked.connect(lambda: self._switch_view(2))
+
         tab_bar.addWidget(self._btn_graph_tab)
         tab_bar.addWidget(self._btn_details_tab)
+        tab_bar.addWidget(self._btn_logs_tab)
         tab_bar.addStretch()
 
         tab_bar_widget = QWidget()
@@ -257,6 +264,9 @@ class MainWindow(QMainWindow):
         details_outer.addWidget(details_splitter)
         self._view_stack.addWidget(details_page)
 
+        # Page 2 – Logs (full-size log panel)
+        self._view_stack.addWidget(self.log_panel)
+
         # ── Right pane: top strip + tab bar + stacked view ───────────────────────
         right_pane = QWidget()
         right_layout = QVBoxLayout(right_pane)
@@ -275,14 +285,11 @@ class MainWindow(QMainWindow):
         top_splitter.setStretchFactor(1, 1)
         top_splitter.setSizes([250, 1050])
 
-        # ── Vertical splitter: content area | log panel ───────────────────────
+        # ── Vertical main splitter (wraps top_splitter; log is now a tab) ─────
         self._main_splitter = QSplitter(Qt.Orientation.Vertical)
         self._main_splitter.setObjectName("mainSplitter")
         self._main_splitter.addWidget(top_splitter)
-        self._main_splitter.addWidget(self.log_panel)
-        self._main_splitter.setStretchFactor(0, 4)
-        self._main_splitter.setStretchFactor(1, 1)
-        self._main_splitter.setSizes([640, 160])
+        self._main_splitter.setStretchFactor(0, 1)
 
         container = QWidget()
         vbox = QVBoxLayout(container)
@@ -294,16 +301,18 @@ class MainWindow(QMainWindow):
     # ── View switching ────────────────────────────────────────────────────────
 
     def _switch_view(self, page: int) -> None:
-        """Switch the stacked widget between Graph (0) and Details (1)."""
+        """Switch the stacked widget: 0=Graph, 1=Details, 2=Logs."""
         self._view_stack.setCurrentIndex(page)
         self._btn_graph_tab.setChecked(page == 0)
         self._btn_details_tab.setChecked(page == 1)
+        self._btn_logs_tab.setChecked(page == 2)
         self._act_graph.setChecked(page == 0)
         self._act_details.setChecked(page == 1)
+        self._act_log.setChecked(page == 2)
 
     def _toggle_log(self, checked: bool) -> None:
-        """Show/hide the log panel without destroying its contents."""
-        self.log_panel.setVisible(checked)
+        """Switch to the Logs tab (or back to Graph) via the toolbar toggle."""
+        self._switch_view(2 if checked else 0)
 
     def _build_statusbar(self) -> None:
         self._statusbar = QStatusBar(self)
@@ -326,11 +335,6 @@ class MainWindow(QMainWindow):
         # Restore last active view page
         page = int(s.value(SETTING_VIEW_PAGE, 0))
         self._switch_view(page)
-        # Restore log visibility
-        log_visible = s.value(SETTING_LOG_VISIBLE, True)
-        visible = log_visible if isinstance(log_visible, bool) else log_visible == "true"
-        self._act_log.setChecked(visible)
-        self.log_panel.setVisible(visible)
 
     def closeEvent(self, event: QCloseEvent) -> None:
         s = QSettings(ORG_NAME, APP_NAME)
@@ -338,7 +342,6 @@ class MainWindow(QMainWindow):
         s.setValue(SETTING_WINDOW_STATE, self.saveState())
         s.setValue(SETTING_SPLITTER_STATE, self._main_splitter.saveState())
         s.setValue(SETTING_VIEW_PAGE, self._view_stack.currentIndex())
-        s.setValue(SETTING_LOG_VISIBLE, self.log_panel.isVisible())
         if self._app_controller:
             self._app_controller.teardown()
         super().closeEvent(event)

@@ -246,6 +246,8 @@ class MockADSConnectionManager(QObject):
     def _ack_received(self) -> None:
         if self._state != _SEND_START:
             return
+        # Reset the command bit so a new rising edge can be detected next time
+        self._mem["MAIN.stSettings.bEnableModule"] = False
         enable_ramp = bool(self._mem.get("MAIN.stSettings.bEnableRamp", False))
         if enable_ramp:
             self._ramp_voltage = float(
@@ -271,11 +273,15 @@ class MockADSConnectionManager(QObject):
 
     def _stop_complete(self) -> None:
         self._state = _IDLE
+        # Reset the command bit so a new rising edge can be detected next time
+        self._mem["MAIN.stSettings.bDisableModule"] = False
 
     def _handle_clear_fault(self) -> None:
         if self._state == _FAULT:
             self._fault_bits = 0
             self._state      = _IDLE
+        # Always reset the command bit for re-triggering
+        self._mem["MAIN.stSettings.bClearFault"] = False
 
     def _handle_update_setpoint(self) -> None:
         """Apply new V/I and ramp settings while running."""
