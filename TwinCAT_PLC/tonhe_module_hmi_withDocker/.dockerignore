@@ -1,0 +1,51 @@
+# .dockerignore – TONHE Module HMI
+# These paths are excluded from the Docker build context.
+
+# Virtual environments
+.venv/
+venv/
+env/
+
+# Build artefacts
+build/
+dist/
+*.egg-info/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# IDE / editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*.orig
+
+# Test / dev files
+tests/
+.pytest_cache/
+.coverage
+htmlcov/
+
+# cx_Freeze / PyInstaller specs
+*.spec
+
+# Git
+.git/
+.gitignore
+.gitattributes
+
+# Docker files themselves (avoid recursive inclusion)
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Documentation
+README.md
+docs/
+
+# Windows-only packaging
+scripts/sign-*.bat
+scripts/sign-*.ps1

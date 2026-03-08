@@ -1,0 +1,54 @@
+# docker-compose.yml – TONHE Module HMI
+# ─────────────────────────────────────
+# Profiles:
+#   real   – connect to a real TwinCAT PLC over ADS (default)
+#   mock   – use built-in mock PLC simulator (no hardware needed)
+#
+# Usage:
+#   Linux/macOS – real PLC:
+#       xhost +local:docker
+#       docker compose up
+#
+#   Linux/macOS – mock mode:
+#       xhost +local:docker
+#       docker compose --profile mock up
+#
+#   Windows – see scripts/docker-run.ps1
+
+services:
+
+  # ── Real-ADS mode (default) ─────────────────────────────────────────────
+  tonehmi:
+    build: .
+    image: tonehmi:latest
+    container_name: tonehmi
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - MOCK_ADS=0
+      # ADS route – set these to match your TwinCAT runtime
+      - ADS_TARGET_IP=${ADS_TARGET_IP:-192.168.0.1}
+      - ADS_TARGET_AMS=${ADS_TARGET_AMS:-5.1.204.160.1.1}
+    volumes:
+      # X11 socket (Linux only; ignored on Windows/macOS with VcXsrv)
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      # Persist app config (window geometry, last config file path, etc.)
+      - tonehmi-config:/home/appuser/.config
+    network_mode: host          # needed for ADS UDP broadcast discovery
+    restart: "no"
+
+  # ── Mock-ADS mode ───────────────────────────────────────────────────────
+  tonehmi-mock:
+    build: .
+    image: tonehmi:latest
+    container_name: tonehmi-mock
+    profiles: ["mock"]
+    environment:
+      - DISPLAY=${DISPLAY:-:0}
+      - MOCK_ADS=1
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:rw
+      - tonehmi-config:/home/appuser/.config
+    restart: "no"
+
+volumes:
+  tonehmi-config:

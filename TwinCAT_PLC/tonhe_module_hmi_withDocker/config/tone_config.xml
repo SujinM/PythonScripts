@@ -1,0 +1,270 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+    tone_config.xml
+    ───────────────
+    TwinCAT 3 ADS configuration for the TONHE Charging Module HMI.
+
+    Connection
+      AMSNetID  : AMS Net ID of the TwinCAT runtime running ThoneModuleTest.
+      IPAddress : IPv4 address of the TwinCAT host PC.
+      Port      : ADS port of PLC runtime 1 (default 851).
+
+    Variables map directly to MAIN / GVL symbols in ThoneModuleTest.plcproj.
+    Types supported: BOOL | BYTE | INT | UINT | DINT | UDINT | REAL | STRING
+-->
+<PLCConfig>
+
+    <Connection>
+        <AMSNetID>5.1.204.160.1.1</AMSNetID>
+        <IPAddress>192.168.0.100</IPAddress>
+        <Port>851</Port>
+    </Connection>
+
+    <Reconnect>
+        <MaxAttempts>10</MaxAttempts>
+        <InitialDelaySeconds>1.0</InitialDelaySeconds>
+        <BackoffMultiplier>2.0</BackoffMultiplier>
+        <MaxDelaySeconds>60.0</MaxDelaySeconds>
+    </Reconnect>
+
+    <Notifications>
+        <CycleTimeMs>100</CycleTimeMs>
+        <MaxDelayMs>200</MaxDelayMs>
+    </Notifications>
+
+    <Heartbeat>
+        <IntervalSeconds>5</IntervalSeconds>
+    </Heartbeat>
+
+    <Variables>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             MAIN.stStatus — Module Status (read-only, populated by FB_Tonhe30kW_Module)
+             ══════════════════════════════════════════════════════════════ -->
+
+        <!-- Measurements from M_C_1 -->
+        <Variable>
+            <Name>MAIN.stStatus.nModuleState</Name>
+            <Type>BYTE</Type>
+            <Description>Module status byte: 0x00=OFF, 0x01=ON, 0x11=Fault (from M_C_1)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.rActualVoltage</Name>
+            <Type>REAL</Type>
+            <Description>Output voltage (V) — scaled from 0.1 V/bit by FB</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.rActualCurrent</Name>
+            <Type>REAL</Type>
+            <Description>Output current (A) — scaled from 0.01 A/bit by FB</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.wFaultBits</Name>
+            <Type>UINT</Type>
+            <Description>Fault / Warning bit-field (WORD, bytes 5–6 of M_C_1)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.nPfcFaultBits</Name>
+            <Type>BYTE</Type>
+            <Description>PFC fault status byte (byte 7 of M_C_1)</Description>
+        </Variable>
+
+        <!-- Extended status from M_C_4 -->
+        <Variable>
+            <Name>MAIN.stStatus.wStatusBits</Name>
+            <Type>UINT</Type>
+            <Description>Detailed module status bit-field (bytes 1–2 of M_C_4)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.wExtFaultWarningBits</Name>
+            <Type>UINT</Type>
+            <Description>Extended fault / warning bit-field (bytes 3–4 of M_C_4)</Description>
+        </Variable>
+
+        <!-- Exchange information from M_C_3 -->
+        <Variable>
+            <Name>MAIN.stStatus.rPhaseVoltageA</Name>
+            <Type>REAL</Type>
+            <Description>AC input A-phase voltage (V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.rPhaseVoltageB</Name>
+            <Type>REAL</Type>
+            <Description>AC input B-phase voltage (V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.rPhaseVoltageC</Name>
+            <Type>REAL</Type>
+            <Description>AC input C-phase voltage (V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.nTemperature</Name>
+            <Type>INT</Type>
+            <Description>Ambient temperature inside module (°C)</Description>
+        </Variable>
+
+        <!-- Module control state -->
+        <Variable>
+            <Name>MAIN.stStatus.bModuleRunning</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE while state machine is in RUNNING or RAMPING state</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.bModuleFault</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE when a fault condition is latched</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.bAckReceived</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE after M_C_2 acknowledged the last command</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.sStatusText</Name>
+            <Type>STRING</Type>
+            <Description>Human-readable state machine status message</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.eControlState</Name>
+            <Type>INT</Type>
+            <Description>Internal state machine state (mapped from E_ModuleState enum)</Description>
+        </Variable>
+
+        <!-- Ramp progress -->
+        <Variable>
+            <Name>MAIN.stStatus.nRampCurrentVoltage</Name>
+            <Type>UINT</Type>
+            <Description>Current ramp voltage in raw units (0.1 V/bit) during soft-start</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stStatus.bRampComplete</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE when soft-start ramp has reached the target voltage</Description>
+        </Variable>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             MAIN.stSettings — Control Setpoints (read / write from HMI)
+             ══════════════════════════════════════════════════════════════ -->
+
+        <!-- Module commands (write TRUE to trigger rising-edge action) -->
+        <Variable>
+            <Name>MAIN.stSettings.bEnableModule</Name>
+            <Type>BOOL</Type>
+            <Description>Rising edge: start module (send C_M_24 = 0xAA)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.bDisableModule</Name>
+            <Type>BOOL</Type>
+            <Description>Rising edge: stop module (send C_M_24 = 0x55)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.bClearFault</Name>
+            <Type>BOOL</Type>
+            <Description>Rising edge: clear fault flags and reset state machine</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.bUpdateSetpoint</Name>
+            <Type>BOOL</Type>
+            <Description>Rising edge: push new V/I setpoints to module while running</Description>
+        </Variable>
+
+        <!-- Setpoints -->
+        <Variable>
+            <Name>MAIN.stSettings.nTargetVoltage</Name>
+            <Type>UINT</Type>
+            <Description>Voltage setpoint (0.1 V/bit, e.g. 5000 = 500.0 V)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.nTargetCurrent</Name>
+            <Type>UINT</Type>
+            <Description>Current setpoint (0.01 A/bit, e.g. 4100 = 41.00 A)</Description>
+        </Variable>
+
+        <!-- Addressing -->
+        <Variable>
+            <Name>MAIN.stSettings.nModuleAddress</Name>
+            <Type>BYTE</Type>
+            <Description>Target module CAN address (1–240)</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.nMasterAddress</Name>
+            <Type>BYTE</Type>
+            <Description>Master controller address (fixed 0xA0 per TONHE protocol)</Description>
+        </Variable>
+
+        <!-- Voltage ramp (soft-start) -->
+        <Variable>
+            <Name>MAIN.stSettings.bEnableRamp</Name>
+            <Type>BOOL</Type>
+            <Description>Enable soft-start voltage ramp on next module start</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.nRampVoltageStep</Name>
+            <Type>UINT</Type>
+            <Description>Ramp step size in raw units (0.1 V/bit), e.g. 100 = 10 V per step</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.tRampStepTime</Name>
+            <Type>UDINT</Type>
+            <Description>Time between ramp steps in milliseconds (TwinCAT TIME stored as DWORD ms)</Description>
+        </Variable>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             MAIN.fbComm — CAN Communication Layer Diagnostics (read-only)
+             ══════════════════════════════════════════════════════════════ -->
+        <Variable>
+            <Name>MAIN.fbComm.bStatusReceived</Name>
+            <Type>BOOL</Type>
+            <Description>Pulsed TRUE each time a fresh M_C_1 status frame is received</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.fbComm.nRxFrameCount</Name>
+            <Type>UDINT</Type>
+            <Description>Total CAN frames received since PLC start</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.fbComm.nLastRxCobId</Name>
+            <Type>UDINT</Type>
+            <Description>CAN ID (COB-ID) of the last received frame</Description>
+        </Variable>
+
+        <!-- ══════════════════════════════════════════════════════════════
+             MAIN.fbModule — Module Control FB Internals (diagnostics)
+             ══════════════════════════════════════════════════════════════ -->
+        <Variable>
+            <Name>MAIN.fbModule.nRetryCount</Name>
+            <Type>UINT</Type>
+            <Description>Current retry counter for ACK acknowledgment attempts</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.fbModule.nMaxRetries</Name>
+            <Type>UINT</Type>
+            <Description>Maximum permitted retries before transitioning to FAULT</Description>
+        </Variable>
+
+    </Variables>
+
+</PLCConfig>

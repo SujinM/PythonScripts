@@ -1,0 +1,5 @@
+# tonhe_module_hmi – runtime dependencies
+# ─────────────────────────────────────────
+PyQt6>=6.6.0
+pyads>=3.0.0
+pyqtgraph>=0.13.0          # future voltage/current graph panel
