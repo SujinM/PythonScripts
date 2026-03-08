@@ -33,6 +33,12 @@ python app.py
 # MOCK ADS (PowerShell)
 $env:MOCK_ADS=1; python app.py
 
+# Design Watch
+$env:MOCK_ADS=1; python watch.py
+
+# Mock ADS (temporary, doesn't pollute session):
+Remove-Item Env:MOCK_ADS
+
 # Build
 scripts\build_cx.bat              # build exe tree
 scripts\build_cx.bat clean        # clean build exe tree

@@ -83,7 +83,7 @@ class ModuleController(QObject):
         # Wire control panel buttons
         control_panel.start_requested.connect(self._on_start)
         control_panel.stop_requested.connect(self._on_stop)
-        control_panel.clear_fault_requested.connect(self._on_clear_fault)
+        status_panel.clear_fault_requested.connect(self._on_clear_fault)
 
         # Wire setpoint panel
         setpoint_panel.apply_requested.connect(self._on_apply_setpoint)
@@ -93,6 +93,7 @@ class ModuleController(QObject):
     @pyqtSlot()
     def on_connected(self) -> None:
         self._control_panel.set_connected()
+        self._status_panel.set_connected()
         self._setpoint_panel.set_connected()
         if self._graph_panel:
             self._graph_panel.reset_time_origin()
@@ -111,6 +112,7 @@ class ModuleController(QObject):
     def on_disconnected(self) -> None:
         self._stop_poll()
         self._control_panel.set_disconnected()
+        self._status_panel.set_disconnected()
         self._setpoint_panel.set_disconnected()
         self.status_message.emit("Disconnected")
 

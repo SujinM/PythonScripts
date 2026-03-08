@@ -7,7 +7,7 @@ Layout
 ──────
 ┌───────────────────────────────────────────────────────────────────┐
 │  Menu bar  (File | View | Help)                                   │
-│  Tool bar  (Open Config | Theme | 📊 Graph | 🔍 Details | Log)     │
+│  Tool bar  (Open Config | Theme |  Graph |   Details | Log)       │
 ├──────────────┬────────────────────────────────────────────────────┤
 │  Connection  │  Module Status panel   │  Control + Setpoints      │
 │  Panel       ├────────────────────────────────────────────────────┤

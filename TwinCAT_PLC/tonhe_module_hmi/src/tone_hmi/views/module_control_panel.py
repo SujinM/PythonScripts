@@ -8,15 +8,16 @@ ModuleController handles the actual ADS write.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QFont, QIntValidator
+from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QFont
 from PyQt6.QtWidgets import (
-    QFormLayout,
+    QFrame,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QLabel,
-    QLineEdit,
     QPushButton,
+    QSizePolicy,
     QVBoxLayout,
     QWidget,
 )
@@ -33,87 +34,129 @@ class ModuleControlPanel(QGroupBox):
 
     start_requested = pyqtSignal()
     stop_requested = pyqtSignal()
-    clear_fault_requested = pyqtSignal()
+
+    _BTN_FONT   = QFont("Segoe UI", 9, QFont.Weight.Bold)
+    _INFO_FONT  = QFont("Consolas", 10)
+    _LABEL_FONT = QFont("Segoe UI", 8)
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Module Control", parent)
 
-        # ── Buttons ───────────────────────────────────────────────────────────
-        self._btn_start = QPushButton("▶  START")
+        # ── Primary action buttons ─────────────────────────────────────────
+        self._btn_start = QPushButton("▶   START")
         self._btn_start.setObjectName("btnStart")
-        self._btn_start.setFixedHeight(34)
-        self._btn_start.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self._btn_start.setToolTip("Send C_M_24 Start command (0xAA) to the module")
+        self._btn_start.setFixedSize(116, 38)
+        self._btn_start.setFont(self._BTN_FONT)
+        self._btn_start.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_start.setToolTip("Send Start command (0xAA) to the module")
+        self._btn_start.setStyleSheet(
+            "QPushButton#btnStart {"
+            "  background: #2e7d32; color: #ffffff;"
+            "  border: none; border-radius: 6px;"
+            "}"
+            "QPushButton#btnStart:hover  { background: #388e3c; }"
+            "QPushButton#btnStart:pressed { background: #1b5e20; }"
+            "QPushButton#btnStart:disabled { background: #555; color: #888; }"
+        )
 
-        self._btn_stop = QPushButton("■  STOP")
+        self._btn_stop = QPushButton("■   STOP")
         self._btn_stop.setObjectName("btnStop")
-        self._btn_stop.setFixedHeight(34)
-        self._btn_stop.setFont(QFont("Segoe UI", 10, QFont.Weight.Bold))
-        self._btn_stop.setToolTip("Send C_M_24 Stop command (0x55) to the module")
+        self._btn_stop.setFixedSize(116, 38)
+        self._btn_stop.setFont(self._BTN_FONT)
+        self._btn_stop.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_stop.setToolTip("Send Stop command (0x55) to the module")
+        self._btn_stop.setStyleSheet(
+            "QPushButton#btnStop {"
+            "  background: #c62828; color: #ffffff;"
+            "  border: none; border-radius: 6px;"
+            "}"
+            "QPushButton#btnStop:hover  { background: #d32f2f; }"
+            "QPushButton#btnStop:pressed { background: #b71c1c; }"
+            "QPushButton#btnStop:disabled { background: #555; color: #888; }"
+        )
 
-        self._btn_clear = QPushButton("⚑  CLEAR FAULT")
-        self._btn_clear.setObjectName("btnClearFault")
-        self._btn_clear.setFixedHeight(28)
-        self._btn_clear.setToolTip("Clear fault flags and reset PLC state machine")
+        # ── Clear Fault button removed — now lives in ModuleStatusPanel flags row ──
 
-        # ── Module address fields (informational, could later allow editing) ──
-        self._module_addr_label = QLabel("0x01")
-        self._module_addr_label.setFont(QFont("Consolas", 11))
-        self._master_addr_label = QLabel("0xA0")
-        self._master_addr_label.setFont(QFont("Consolas", 11))
-        self._retry_label = QLabel("0 / 10")
-        self._retry_label.setFont(QFont("Consolas", 11))
+        # ── Info value labels ──────────────────────────────────────────────
+        self._module_addr_label = self._make_value_label("0x01")
+        self._master_addr_label = self._make_value_label("0xA0")
+        self._retry_label       = self._make_value_label("0 / 10")
 
-        # ── Signal wiring ─────────────────────────────────────────────────────
+        # ── Signal wiring ─────────────────────────────────────────────────
         self._btn_start.clicked.connect(self.start_requested)
         self._btn_stop.clicked.connect(self.stop_requested)
-        self._btn_clear.clicked.connect(self.clear_fault_requested)
 
         self._build_layout()
         self.set_disconnected()
 
-    # ── Layout ────────────────────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────
 
-    def _build_layout(self) -> None:
-        btn_row = QHBoxLayout()
-        btn_row.setSpacing(6)
-        btn_row.addWidget(self._btn_start)
-        btn_row.addWidget(self._btn_stop)
-
-        form = QFormLayout()
-        form.setSpacing(4)
-        form.setContentsMargins(0, 0, 0, 0)
-        form.addRow("Module Addr:", self._module_addr_label)
-        form.addRow("Master Addr:", self._master_addr_label)
-        form.addRow("Retries:", self._retry_label)
-
-        vbox = QVBoxLayout(self)
-        vbox.setSpacing(6)
-        vbox.setContentsMargins(8, 6, 8, 6)
-        vbox.addLayout(btn_row)
-        vbox.addWidget(self._btn_clear)
-        vbox.addWidget(self._make_separator())
-        vbox.addLayout(form)
+    def _make_value_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setFont(self._INFO_FONT)
+        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        lbl.setStyleSheet("padding-left: 8px;")
+        lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
+        return lbl
 
     @staticmethod
-    def _make_separator():
-        from PyQt6.QtWidgets import QFrame
+    def _make_key_label(text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setFont(QFont("Segoe UI", 8))
+        lbl.setStyleSheet("color: #9e9e9e;")
+        return lbl
+
+    @staticmethod
+    def _make_divider() -> QFrame:
         line = QFrame()
         line.setFrameShape(QFrame.Shape.HLine)
-        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setFrameShadow(QFrame.Shadow.Plain)
+        line.setStyleSheet("color: #3a3a3a;")
         return line
 
-    # ── Public API ────────────────────────────────────────────────────────────
+    # ── Layout ────────────────────────────────────────────────────────────
+
+    def _build_layout(self) -> None:
+        # Primary buttons row
+        btn_row = QHBoxLayout()
+        btn_row.setSpacing(8)
+        btn_row.addWidget(self._btn_start)
+        btn_row.addWidget(self._btn_stop)
+        btn_row.addStretch()
+
+        # Info grid: key | value | <stretch>
+        info = QGridLayout()
+        info.setSpacing(4)
+        info.setContentsMargins(0, 0, 0, 0)
+        info.setColumnStretch(2, 1)  # col 2 absorbs leftover space
+
+        rows = [
+            ("Module Addr", self._module_addr_label),
+            ("Master Addr", self._master_addr_label),
+            ("Retries",     self._retry_label),
+        ]
+        for r, (key, val) in enumerate(rows):
+            key_lbl = self._make_key_label(key)
+            info.addWidget(key_lbl, r, 0)
+            info.addWidget(val,     r, 1)
+
+        vbox = QVBoxLayout(self)
+        vbox.setSpacing(8)
+        vbox.setContentsMargins(10, 8, 10, 10)
+        vbox.addLayout(btn_row)
+        vbox.addWidget(self._make_divider())
+        vbox.addLayout(info)
+        vbox.addStretch()
+
+    # ── Public API ────────────────────────────────────────────────────────
 
     def set_disconnected(self) -> None:
         self._btn_start.setEnabled(False)
         self._btn_stop.setEnabled(False)
-        self._btn_clear.setEnabled(False)
 
     def set_connected(self) -> None:
         self._btn_start.setEnabled(True)
         self._btn_stop.setEnabled(True)
-        self._btn_clear.setEnabled(True)
 
     def update_addresses(self, module_addr: int | None, master_addr: int | None) -> None:
         if module_addr is not None:

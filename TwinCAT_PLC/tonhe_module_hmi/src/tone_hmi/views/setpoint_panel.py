@@ -10,12 +10,14 @@ PLC and pulse bUpdateSetpoint.
 
 from __future__ import annotations
 
-from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QDoubleValidator, QIntValidator
+from PyQt6.QtCore import pyqtSignal, Qt
+from PyQt6.QtGui import QDoubleValidator, QFont, QIntValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QFrame,
     QGridLayout,
     QGroupBox,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
     QPushButton,
@@ -42,70 +44,76 @@ class SetpointPanel(QGroupBox):
 
     # Limits from TONHE V1.3 spec (realistic maximums)
     _VOLT_MIN = 0.0
-    _VOLT_MAX = 1000.0    # 1000 V
+    _VOLT_MAX = 1000.0
     _CURR_MIN = 0.0
-    _CURR_MAX = 200.0     # 200 A
+    _CURR_MAX = 200.0
     _RAMP_STEP_MIN = 0.0
-    _RAMP_STEP_MAX = 200.0    # 200 V per step max
-    _RAMP_TIME_MIN = 100      # 100 ms minimum step time
-    _RAMP_TIME_MAX = 60000    # 60 s maximum step time
+    _RAMP_STEP_MAX = 200.0
+    _RAMP_TIME_MIN = 100
+    _RAMP_TIME_MAX = 60000
+
+    _EDIT_W   = 110
+    _EDIT_H   = 26
+    _UNIT_SS  = "color: #9e9e9e; font-size: 8pt;"
+    _KEY_SS   = "color: #9e9e9e; font-size: 8pt;"
+    _LIVE_SS  = "color: #64b5f6; font-family: Consolas; font-size: 9pt;"
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Setpoints && Ramp", parent)
 
-        # ── Live readback labels ──────────────────────────────────────────────
-        self._volt_live = QLabel("–––  V")
-        self._curr_live = QLabel("–––  A")
+        # ── Live readback labels ──────────────────────────────────────────
+        self._volt_live = self._make_live_label("–––  V")
+        self._curr_live = self._make_live_label("–––  A")
 
-        # ── Setpoint editors ──────────────────────────────────────────────────
-        self._volt_edit = QLineEdit()
-        self._volt_edit.setPlaceholderText("e.g.  500.0")
-        self._volt_edit.setValidator(
-            QDoubleValidator(self._VOLT_MIN, self._VOLT_MAX, 1, self._volt_edit)
+        # ── Setpoint editors ─────────────────────────────────────────────
+        self._volt_edit = self._make_edit(
+            "500.0",
+            QDoubleValidator(self._VOLT_MIN, self._VOLT_MAX, 1),
         )
-        self._volt_edit.setMaximumWidth(120)
-
-        self._curr_edit = QLineEdit()
-        self._curr_edit.setPlaceholderText("e.g.  41.00")
-        self._curr_edit.setValidator(
-            QDoubleValidator(self._CURR_MIN, self._CURR_MAX, 2, self._curr_edit)
+        self._curr_edit = self._make_edit(
+            "41.00",
+            QDoubleValidator(self._CURR_MIN, self._CURR_MAX, 2),
         )
-        self._curr_edit.setMaximumWidth(120)
 
-        # ── Ramp controls ─────────────────────────────────────────────────────
+        # ── Ramp controls ─────────────────────────────────────────────────
         self._ramp_chk = QCheckBox("Enable soft-start ramp")
+        self._ramp_chk.setFont(QFont("Segoe UI", 8))
         self._ramp_chk.setToolTip(
             "When enabled, voltage is stepped up gradually from 0 to setpoint on START"
         )
 
-        self._ramp_step_edit = QLineEdit()
-        self._ramp_step_edit.setPlaceholderText("e.g.  10.0")
-        self._ramp_step_edit.setValidator(
-            QDoubleValidator(self._RAMP_STEP_MIN, self._RAMP_STEP_MAX, 1, self._ramp_step_edit)
+        self._ramp_step_edit = self._make_edit(
+            "10.0",
+            QDoubleValidator(self._RAMP_STEP_MIN, self._RAMP_STEP_MAX, 1),
+            tooltip="Voltage increase per ramp step (V)",
         )
-        self._ramp_step_edit.setMaximumWidth(120)
-        self._ramp_step_edit.setToolTip("Voltage increase per ramp step (V)")
-
-        self._ramp_time_edit = QLineEdit()
-        self._ramp_time_edit.setPlaceholderText("e.g.  1000")
-        self._ramp_time_edit.setValidator(
-            QIntValidator(self._RAMP_TIME_MIN, self._RAMP_TIME_MAX, self._ramp_time_edit)
+        self._ramp_time_edit = self._make_edit(
+            "1000",
+            QIntValidator(self._RAMP_TIME_MIN, self._RAMP_TIME_MAX),
+            tooltip="Time between each ramp step (ms)",
         )
-        self._ramp_time_edit.setMaximumWidth(120)
-        self._ramp_time_edit.setToolTip("Time between each ramp step (milliseconds)")
-
-        # Ramp live readback
-        self._ramp_voltage_live = QLabel("–––  V")
+        self._ramp_voltage_live = self._make_live_label("–––  V")
         self._ramp_voltage_live.setToolTip("Current ramp voltage during soft-start")
 
-        # ── Apply button ──────────────────────────────────────────────────────
-        self._btn_apply = QPushButton("⬆  Apply")
+        # ── Apply button ──────────────────────────────────────────────────
+        self._btn_apply = QPushButton("⬆   Apply Setpoints")
         self._btn_apply.setObjectName("btnApplySetpoint")
-        self._btn_apply.setFixedHeight(28)
+        self._btn_apply.setFixedSize(170, 34)
+        self._btn_apply.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_apply.setToolTip(
             "Write voltage/current setpoints and ramp settings, then pulse bUpdateSetpoint"
         )
         self._btn_apply.setEnabled(False)
+        self._btn_apply.setStyleSheet(
+            "QPushButton#btnApplySetpoint {"
+            "  background: #1565c0; color: #ffffff;"
+            "  border: none; border-radius: 6px;"
+            "}"
+            "QPushButton#btnApplySetpoint:hover  { background: #1976d2; }"
+            "QPushButton#btnApplySetpoint:pressed { background: #0d47a1; }"
+            "QPushButton#btnApplySetpoint:disabled { background: #555; color: #888; }"
+        )
 
         self._btn_apply.clicked.connect(self._on_apply)
         self._volt_edit.returnPressed.connect(self._on_apply)
@@ -113,51 +121,105 @@ class SetpointPanel(QGroupBox):
 
         self._build_layout()
 
-    # ── Layout ────────────────────────────────────────────────────────────────
+    # ── Helpers ───────────────────────────────────────────────────────────
+
+    def _make_edit(self, placeholder: str, validator, tooltip: str = "") -> QLineEdit:
+        edit = QLineEdit()
+        edit.setPlaceholderText(placeholder)
+        edit.setValidator(validator)
+        edit.setFixedSize(self._EDIT_W, self._EDIT_H)
+        edit.setFont(QFont("Consolas", 9))
+        if tooltip:
+            edit.setToolTip(tooltip)
+        return edit
+
+    def _make_live_label(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(self._LIVE_SS + "padding-left: 8px;")
+        lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
+        return lbl
+
+    @staticmethod
+    def _make_section_header(title: str) -> QLabel:
+        lbl = QLabel(title.upper())
+        lbl.setStyleSheet(
+            "color: #78909c; font-size: 7pt; font-weight: bold; letter-spacing: 1px;"
+        )
+        return lbl
+
+    @staticmethod
+    def _make_divider() -> QFrame:
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.HLine)
+        line.setFrameShadow(QFrame.Shadow.Plain)
+        line.setStyleSheet("color: #3a3a3a;")
+        return line
+
+    def _make_key(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(self._KEY_SS + "padding-left: 8px;")
+        return lbl
+
+    def _make_unit(self, text: str) -> QLabel:
+        lbl = QLabel(text)
+        lbl.setStyleSheet(self._UNIT_SS)
+        return lbl
+
+    # ── Layout ────────────────────────────────────────────────────────────
 
     def _build_layout(self) -> None:
-        grid = QGridLayout()
-        grid.setSpacing(4)
-        grid.setContentsMargins(0, 0, 0, 0)
-        grid.setColumnStretch(3, 1)
+        # ── Setpoints sub-grid ─────────────────────────────────────────────
+        sp_grid = QGridLayout()
+        sp_grid.setSpacing(5)
+        sp_grid.setContentsMargins(0, 0, 0, 0)
+        sp_grid.setColumnStretch(3, 1)
 
-        # Row 0: Voltage setpoint
-        grid.addWidget(QLabel("Voltage:"),      0, 0)
-        grid.addWidget(self._volt_edit,         0, 1)
-        grid.addWidget(QLabel("V"),             0, 2)
-        grid.addWidget(self._volt_live,         0, 3)
+        sp_grid.addWidget(self._make_key("Voltage"),  0, 0)
+        sp_grid.addWidget(self._volt_edit,            0, 1)
+        sp_grid.addWidget(self._make_unit("V"),       0, 2)
+        sp_grid.addWidget(self._volt_live,            0, 3, Qt.AlignmentFlag.AlignLeft)
 
-        # Row 1: Current setpoint
-        grid.addWidget(QLabel("Current:"),      1, 0)
-        grid.addWidget(self._curr_edit,         1, 1)
-        grid.addWidget(QLabel("A"),             1, 2)
-        grid.addWidget(self._curr_live,         1, 3)
+        sp_grid.addWidget(self._make_key("Current"),  1, 0)
+        sp_grid.addWidget(self._curr_edit,            1, 1)
+        sp_grid.addWidget(self._make_unit("A"),       1, 2)
+        sp_grid.addWidget(self._curr_live,            1, 3, Qt.AlignmentFlag.AlignLeft)
 
-        # Separator row (spacer label)
-        sep = QLabel("── Ramp ─────────────────")
-        sep.setStyleSheet("color: gray; font-size: 9pt;")
-        grid.addWidget(sep, 2, 0, 1, 4)
+        # ── Ramp sub-grid ──────────────────────────────────────────────────
+        ramp_grid = QGridLayout()
+        ramp_grid.setSpacing(5)
+        ramp_grid.setContentsMargins(0, 0, 0, 0)
+        ramp_grid.setColumnStretch(3, 1)
 
-        # Row 3: Enable ramp checkbox + live ramp voltage
-        grid.addWidget(self._ramp_chk,          3, 0, 1, 2)
-        grid.addWidget(QLabel("Now:"),          3, 2)
-        grid.addWidget(self._ramp_voltage_live, 3, 3)
+        ramp_grid.addWidget(self._ramp_chk,                   0, 0, 1, 2)
+        ramp_grid.addWidget(self._make_key("Progress:"),      0, 2)
+        ramp_grid.addWidget(self._ramp_voltage_live,          0, 3, Qt.AlignmentFlag.AlignLeft)
 
-        # Row 4: Ramp step size
-        grid.addWidget(QLabel("Step size:"),    4, 0)
-        grid.addWidget(self._ramp_step_edit,    4, 1)
-        grid.addWidget(QLabel("V / step"),      4, 2)
+        ramp_grid.addWidget(self._make_key("Step size"),      1, 0)
+        ramp_grid.addWidget(self._ramp_step_edit,             1, 1)
+        ramp_grid.addWidget(self._make_unit("V / step"),      1, 2)
 
-        # Row 5: Ramp step time
-        grid.addWidget(QLabel("Step time:"),    5, 0)
-        grid.addWidget(self._ramp_time_edit,    5, 1)
-        grid.addWidget(QLabel("ms"),            5, 2)
+        ramp_grid.addWidget(self._make_key("Step time"),      2, 0)
+        ramp_grid.addWidget(self._ramp_time_edit,             2, 1)
+        ramp_grid.addWidget(self._make_unit("ms"),            2, 2)
 
+        # ── Apply row ──────────────────────────────────────────────────────
+        apply_row = QHBoxLayout()
+        apply_row.setContentsMargins(0, 0, 0, 0)
+        apply_row.addWidget(self._btn_apply)
+        apply_row.addStretch()
+
+        # ── Assemble ───────────────────────────────────────────────────────
         vbox = QVBoxLayout(self)
-        vbox.setSpacing(4)
-        vbox.setContentsMargins(8, 6, 8, 6)
-        vbox.addLayout(grid)
-        vbox.addWidget(self._btn_apply)
+        vbox.setSpacing(6)
+        vbox.setContentsMargins(10, 8, 10, 10)
+        vbox.addWidget(self._make_section_header("Output Setpoints"))
+        vbox.addLayout(sp_grid)
+        vbox.addWidget(self._make_divider())
+        vbox.addWidget(self._make_section_header("Soft-Start Ramp"))
+        vbox.addLayout(ramp_grid)
+        vbox.addWidget(self._make_divider())
+        vbox.addLayout(apply_row)
+        vbox.addStretch()
 
     # ── Public API ────────────────────────────────────────────────────────────
 
@@ -168,17 +230,17 @@ class SetpointPanel(QGroupBox):
         self._btn_apply.setEnabled(False)
 
     def update_live_voltage(self, v: float | None) -> None:
-        self._volt_live.setText(f"{v:.1f}  V" if v is not None else "–––  V")
+        self._volt_live.setText(f"{v:.1f} V" if v is not None else "––– V")
 
     def update_live_current(self, a: float | None) -> None:
-        self._curr_live.setText(f"{a:.2f}  A" if a is not None else "–––  A")
+        self._curr_live.setText(f"{a:.2f} A" if a is not None else "––– A")
 
     def update_live_ramp_voltage(self, v_raw: int | None) -> None:
         """Show current ramp voltage progress (raw 0.1 V/bit)."""
         if v_raw is not None:
-            self._ramp_voltage_live.setText(f"{v_raw / 10:.1f}  V")
+            self._ramp_voltage_live.setText(f"{v_raw / 10:.1f} V")
         else:
-            self._ramp_voltage_live.setText("–––  V")
+            self._ramp_voltage_live.setText("––– V")
 
     def populate_setpoints(self, voltage_raw: int | None, current_raw: int | None) -> None:
         """Pre-fill the V/I editor fields with the current PLC setpoints."""
