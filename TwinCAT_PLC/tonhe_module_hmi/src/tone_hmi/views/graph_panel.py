@@ -49,7 +49,8 @@ class GraphPopupWindow(QDialog):
 
     def __init__(self, graph_panel: "GraphPanel", parent: Optional[QWidget] = None) -> None:
         super().__init__(parent, Qt.WindowType.Window)
-        self.setWindowTitle("Graph — Expanded View")
+        self.setWindowTitle("Output Voltage Graph")
+        self.setWindowIcon(graph_panel.window().windowIcon())
         self.resize(1200, 700)
         self.setAttribute(Qt.WidgetAttribute.WA_DeleteOnClose, True)
         self._source = graph_panel

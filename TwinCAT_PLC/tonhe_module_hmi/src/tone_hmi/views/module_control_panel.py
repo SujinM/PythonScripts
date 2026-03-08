@@ -95,7 +95,7 @@ class ModuleControlPanel(QGroupBox):
         lbl = QLabel(text)
         lbl.setFont(self._INFO_FONT)
         lbl.setAlignment(Qt.AlignmentFlag.AlignLeft | Qt.AlignmentFlag.AlignVCenter)
-        lbl.setStyleSheet("padding-left: 8px;")
+        lbl.setStyleSheet("padding-left: 8px; padding-right: 4px;")
         lbl.setSizePolicy(QSizePolicy.Policy.Maximum, QSizePolicy.Policy.Preferred)
         return lbl
 
@@ -103,7 +103,7 @@ class ModuleControlPanel(QGroupBox):
     def _make_key_label(text: str) -> QLabel:
         lbl = QLabel(text)
         lbl.setFont(QFont("Segoe UI", 8))
-        lbl.setStyleSheet("color: #9e9e9e;")
+        lbl.setStyleSheet("color: #9e9e9e; padding-left: 8px; padding-right: 4px;")
         return lbl
 
     @staticmethod

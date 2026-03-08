@@ -43,6 +43,7 @@ from PyQt6.QtWidgets import (
 
 from tone_hmi.constants import (
     APP_NAME, APP_VERSION, ORG_NAME,
+    ICONS_DIR,
     WINDOW_DEFAULT_WIDTH, WINDOW_DEFAULT_HEIGHT,
     WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT,
     STATUS_CONNECTED, STATUS_DISCONNECTED,
@@ -75,6 +76,13 @@ class MainWindow(QMainWindow):
     def __init__(self) -> None:
         super().__init__()
         self.setWindowTitle(f"{APP_NAME}  v{APP_VERSION}")
+        # Titlebar / taskbar icon
+        _icon_path = ICONS_DIR / "app.ico"
+        if not _icon_path.exists():
+            _icon_path = ICONS_DIR / "app.png"
+        if _icon_path.exists():
+            from PyQt6.QtGui import QIcon
+            self.setWindowIcon(QIcon(str(_icon_path)))
         self.setMinimumSize(WINDOW_MIN_WIDTH, WINDOW_MIN_HEIGHT)
 
         # Adaptive initial size: 90 % of the available screen area,
