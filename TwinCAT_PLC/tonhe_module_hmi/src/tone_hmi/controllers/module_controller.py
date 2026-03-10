@@ -179,6 +179,7 @@ class ModuleController(QObject):
             r(VAR_MODULE_ADDRESS), r(VAR_MASTER_ADDRESS)
         )
         self._control_panel.update_retries(r(VAR_RETRY_COUNT), r(VAR_MAX_RETRIES))
+        self._control_panel.update_running_state(bool(r(VAR_MODULE_RUNNING)))
 
         # Graph panel — voltage trend
         if self._graph_panel:

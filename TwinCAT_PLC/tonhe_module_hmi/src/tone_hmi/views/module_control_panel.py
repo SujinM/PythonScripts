@@ -156,7 +156,12 @@ class ModuleControlPanel(QGroupBox):
 
     def set_connected(self) -> None:
         self._btn_start.setEnabled(True)
-        self._btn_stop.setEnabled(True)
+        self._btn_stop.setEnabled(False)
+
+    def update_running_state(self, running: bool) -> None:
+        """Disable Start while module is running; disable Stop while idle."""
+        self._btn_start.setEnabled(not running)
+        self._btn_stop.setEnabled(running)
 
     def update_addresses(self, module_addr: int | None, master_addr: int | None) -> None:
         if module_addr is not None:
