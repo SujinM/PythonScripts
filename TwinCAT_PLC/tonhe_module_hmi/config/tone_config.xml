@@ -144,9 +144,9 @@
 
         <!-- Ramp progress -->
         <Variable>
-            <Name>MAIN.stStatus.nRampCurrentVoltage</Name>
-            <Type>UINT</Type>
-            <Description>Current ramp voltage in raw units (0.1 V/bit) during soft-start</Description>
+            <Name>MAIN.stStatus.rRampCurrentVoltage</Name>
+            <Type>REAL</Type>
+            <Description>Current ramp voltage in Volts during soft-start</Description>
         </Variable>
 
         <Variable>
@@ -186,15 +186,28 @@
 
         <!-- Setpoints -->
         <Variable>
-            <Name>MAIN.stSettings.nTargetVoltage</Name>
-            <Type>UINT</Type>
-            <Description>Voltage setpoint (0.1 V/bit, e.g. 5000 = 500.0 V)</Description>
+            <Name>MAIN.stSettings.rTargetVoltage</Name>
+            <Type>REAL</Type>
+            <Description>Voltage setpoint in Volts (e.g. 500.0 V)</Description>
         </Variable>
 
         <Variable>
-            <Name>MAIN.stSettings.nTargetCurrent</Name>
-            <Type>UINT</Type>
-            <Description>Current setpoint (0.01 A/bit, e.g. 4100 = 41.00 A)</Description>
+            <Name>MAIN.stSettings.rTargetCurrent</Name>
+            <Type>REAL</Type>
+            <Description>Current setpoint in Amps (e.g. 41.0 A)</Description>
+        </Variable>
+
+        <!-- Safety Limits -->
+        <Variable>
+            <Name>MAIN.stSettings.rMaxVoltage</Name>
+            <Type>REAL</Type>
+            <Description>Maximum allowed voltage in Volts — setpoints are clamped to this inside the FB</Description>
+        </Variable>
+
+        <Variable>
+            <Name>MAIN.stSettings.rMaxCurrent</Name>
+            <Type>REAL</Type>
+            <Description>Maximum allowed current in Amps — setpoints are clamped to this inside the FB</Description>
         </Variable>
 
         <!-- Addressing -->
@@ -218,15 +231,22 @@
         </Variable>
 
         <Variable>
-            <Name>MAIN.stSettings.nRampVoltageStep</Name>
-            <Type>UINT</Type>
-            <Description>Ramp step size in raw units (0.1 V/bit), e.g. 100 = 10 V per step</Description>
+            <Name>MAIN.stSettings.rRampVoltageStep</Name>
+            <Type>REAL</Type>
+            <Description>Ramp step size in Volts per step (e.g. 10.0 = 10 V)</Description>
         </Variable>
 
         <Variable>
-            <Name>MAIN.stSettings.tRampStepTime</Name>
-            <Type>UDINT</Type>
-            <Description>Time between ramp steps in milliseconds (TwinCAT TIME stored as DWORD ms)</Description>
+            <Name>MAIN.stSettings.rRampStepTime_s</Name>
+            <Type>REAL</Type>
+            <Description>Time between each ramp step in seconds (e.g. 1.0)</Description>
+        </Variable>
+
+        <!-- Timing Heartbeat -->
+        <Variable>
+            <Name>MAIN.stSettings.bEnableHeartbeat</Name>
+            <Type>BOOL</Type>
+            <Description>TRUE: send C_M_3 timing command every 5 s to keep module alive</Description>
         </Variable>
 
         <!-- ══════════════════════════════════════════════════════════════

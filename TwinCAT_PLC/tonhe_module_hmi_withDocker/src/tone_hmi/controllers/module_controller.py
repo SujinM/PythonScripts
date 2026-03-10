@@ -25,7 +25,8 @@ from tone_hmi.constants import (
     VAR_START, VAR_STOP, VAR_CLEAR_FAULT, VAR_MODULE_RUNNING,
     VAR_STATUS_TEXT, VAR_TARGET_VOLTAGE, VAR_TARGET_CURRENT, VAR_UPDATE_VI,
     VAR_MODULE_ADDRESS, VAR_MASTER_ADDRESS, VAR_RETRY_COUNT, VAR_MAX_RETRIES,
-    VAR_ENABLE_RAMP, VAR_RAMP_STEP, VAR_RAMP_TIME_MS,
+    VAR_ENABLE_RAMP, VAR_RAMP_STEP, VAR_RAMP_TIME_S,
+    VAR_MAX_VOLTAGE, VAR_MAX_CURRENT, VAR_HEARTBEAT,
     VAR_RAMP_CURR_VOLT, VAR_RAMP_COMPLETE,
 )
 from tone_hmi.workers.poll_worker import PollWorker
@@ -103,7 +104,7 @@ class ModuleController(QObject):
         self._setpoint_panel.populate_setpoints(v_raw, a_raw)
         enable_ramp = self._ctx.read_variable(VAR_ENABLE_RAMP)
         ramp_step   = self._ctx.read_variable(VAR_RAMP_STEP)
-        ramp_time   = self._ctx.read_variable(VAR_RAMP_TIME_MS)
+        ramp_time   = self._ctx.read_variable(VAR_RAMP_TIME_S)
         self._setpoint_panel.populate_ramp_settings(enable_ramp, ramp_step, ramp_time)
         self.status_message.emit("Connected – polling started")
 
@@ -215,32 +216,29 @@ class ModuleController(QObject):
         except Exception as exc:
             self.error_occurred.emit(f"Clear fault failed: {exc}")
 
-    @pyqtSlot(int, int, bool, int, int)
+    @pyqtSlot(float, float, bool, float, float)
     def _on_apply_setpoint(
         self,
-        voltage_raw: int,
-        current_raw: int,
+        voltage_v: float,
+        current_a: float,
         enable_ramp: bool,
-        ramp_step_raw: int,
-        ramp_time_ms: int,
+        ramp_step_v: float,
+        ramp_time_s: float,
     ) -> None:
         try:
-            self._ctx.write_variable(VAR_TARGET_VOLTAGE, voltage_raw)
-            self._ctx.write_variable(VAR_TARGET_CURRENT, current_raw)
+            self._ctx.write_variable(VAR_TARGET_VOLTAGE, voltage_v)
+            self._ctx.write_variable(VAR_TARGET_CURRENT, current_a)
             self._ctx.write_variable(VAR_ENABLE_RAMP, enable_ramp)
-            self._ctx.write_variable(VAR_RAMP_STEP, ramp_step_raw)
-            self._ctx.write_variable(VAR_RAMP_TIME_MS, ramp_time_ms)
+            self._ctx.write_variable(VAR_RAMP_STEP, ramp_step_v)
+            self._ctx.write_variable(VAR_RAMP_TIME_S, ramp_time_s)
             self._ctx.write_variable(VAR_UPDATE_VI, True)
-            v_display = voltage_raw / 10
-            a_display = current_raw / 100
-            step_display = ramp_step_raw / 10
             log.info(
-                "Setpoint written: %.1f V / %.2f A  ramp=%s step=%.1f V time=%d ms",
-                v_display, a_display, enable_ramp, step_display, ramp_time_ms,
+                "Setpoint written: %.1f V / %.2f A  ramp=%s step=%.1f V time=%.2f s",
+                voltage_v, current_a, enable_ramp, ramp_step_v, ramp_time_s,
             )
             self.status_message.emit(
-                f"Setpoint applied: {v_display:.1f} V / {a_display:.2f} A"
-                + (f"  ramp: {step_display:.1f} V every {ramp_time_ms} ms" if enable_ramp else "")
+                f"Setpoint applied: {voltage_v:.1f} V / {current_a:.2f} A"
+                + (f"  ramp: {ramp_step_v:.1f} V every {ramp_time_s:.2f} s" if enable_ramp else "")
             )
         except Exception as exc:
             self.error_occurred.emit(f"Setpoint write failed: {exc}")

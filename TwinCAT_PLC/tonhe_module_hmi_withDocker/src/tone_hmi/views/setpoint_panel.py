@@ -11,7 +11,7 @@ PLC and pulse bUpdateSetpoint.
 from __future__ import annotations
 
 from PyQt6.QtCore import pyqtSignal
-from PyQt6.QtGui import QDoubleValidator, QIntValidator
+from PyQt6.QtGui import QDoubleValidator
 from PyQt6.QtWidgets import (
     QCheckBox,
     QGridLayout,
@@ -38,7 +38,7 @@ class SetpointPanel(QGroupBox):
                          ramp_time_ms : int  — step interval in milliseconds
     """
 
-    apply_requested = pyqtSignal(int, int, bool, int, int)
+    apply_requested = pyqtSignal(float, float, bool, float, float)
 
     # Limits from TONHE V1.3 spec (realistic maximums)
     _VOLT_MIN = 0.0
@@ -47,8 +47,8 @@ class SetpointPanel(QGroupBox):
     _CURR_MAX = 200.0     # 200 A
     _RAMP_STEP_MIN = 0.0
     _RAMP_STEP_MAX = 200.0    # 200 V per step max
-    _RAMP_TIME_MIN = 100      # 100 ms minimum step time
-    _RAMP_TIME_MAX = 60000    # 60 s maximum step time
+    _RAMP_TIME_MIN = 0.1      # 0.1 s minimum step time
+    _RAMP_TIME_MAX = 60.0     # 60 s maximum step time
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__("Setpoints && Ramp", parent)
@@ -87,12 +87,12 @@ class SetpointPanel(QGroupBox):
         self._ramp_step_edit.setToolTip("Voltage increase per ramp step (V)")
 
         self._ramp_time_edit = QLineEdit()
-        self._ramp_time_edit.setPlaceholderText("e.g.  1000")
+        self._ramp_time_edit.setPlaceholderText("e.g.  1.0")
         self._ramp_time_edit.setValidator(
-            QIntValidator(self._RAMP_TIME_MIN, self._RAMP_TIME_MAX, self._ramp_time_edit)
+            QDoubleValidator(self._RAMP_TIME_MIN, self._RAMP_TIME_MAX, 2, self._ramp_time_edit)
         )
         self._ramp_time_edit.setMaximumWidth(120)
-        self._ramp_time_edit.setToolTip("Time between each ramp step (milliseconds)")
+        self._ramp_time_edit.setToolTip("Time between each ramp step (seconds)")
 
         # Ramp live readback
         self._ramp_voltage_live = QLabel("–––  V")
@@ -151,7 +151,7 @@ class SetpointPanel(QGroupBox):
         # Row 5: Ramp step time
         grid.addWidget(QLabel("Step time:"),    5, 0)
         grid.addWidget(self._ramp_time_edit,    5, 1)
-        grid.addWidget(QLabel("ms"),            5, 2)
+        grid.addWidget(QLabel("s"),              5, 2)
 
         vbox = QVBoxLayout(self)
         vbox.setSpacing(4)
@@ -173,57 +173,54 @@ class SetpointPanel(QGroupBox):
     def update_live_current(self, a: float | None) -> None:
         self._curr_live.setText(f"{a:.2f}  A" if a is not None else "–––  A")
 
-    def update_live_ramp_voltage(self, v_raw: int | None) -> None:
-        """Show current ramp voltage progress (raw 0.1 V/bit)."""
-        if v_raw is not None:
-            self._ramp_voltage_live.setText(f"{v_raw / 10:.1f}  V")
+    def update_live_ramp_voltage(self, v: float | None) -> None:
+        """Show current ramp voltage progress (V)."""
+        if v is not None:
+            self._ramp_voltage_live.setText(f"{v:.1f}  V")
         else:
             self._ramp_voltage_live.setText("–––  V")
 
-    def populate_setpoints(self, voltage_raw: int | None, current_raw: int | None) -> None:
+    def populate_setpoints(self, voltage_v: float | None, current_a: float | None) -> None:
         """Pre-fill the V/I editor fields with the current PLC setpoints."""
-        if voltage_raw is not None:
-            self._volt_edit.setText(f"{voltage_raw / 10:.1f}")
-        if current_raw is not None:
-            self._curr_edit.setText(f"{current_raw / 100:.2f}")
+        if voltage_v is not None:
+            self._volt_edit.setText(f"{voltage_v:.1f}")
+        if current_a is not None:
+            self._curr_edit.setText(f"{current_a:.2f}")
 
     def populate_ramp_settings(
         self,
         enable_ramp: bool | None,
-        ramp_step_raw: int | None,
-        ramp_time_ms: int | None,
+        ramp_step_v: float | None,
+        ramp_time_s: float | None,
     ) -> None:
         """Pre-fill ramp fields with the current PLC ramp configuration."""
         if enable_ramp is not None:
             self._ramp_chk.setChecked(bool(enable_ramp))
-        if ramp_step_raw is not None:
-            self._ramp_step_edit.setText(f"{ramp_step_raw / 10:.1f}")
-        if ramp_time_ms is not None:
-            self._ramp_time_edit.setText(str(int(ramp_time_ms)))
+        if ramp_step_v is not None:
+            self._ramp_step_edit.setText(f"{ramp_step_v:.1f}")
+        if ramp_time_s is not None:
+            self._ramp_time_edit.setText(f"{ramp_time_s:.2f}")
 
     # ── Slot ──────────────────────────────────────────────────────────────────
 
     def _on_apply(self) -> None:
         try:
-            v_f = float(self._volt_edit.text().replace(",", "."))
-            a_f = float(self._curr_edit.text().replace(",", "."))
+            voltage_v = max(0.0, float(self._volt_edit.text().replace(",", ".")))
+            current_a = max(0.0, float(self._curr_edit.text().replace(",", ".")))
         except ValueError:
             return
-        v_raw = max(0, round(v_f * 10))      # 0.1 V/bit
-        a_raw = max(0, round(a_f * 100))     # 0.01 A/bit
 
         enable_ramp = self._ramp_chk.isChecked()
 
         try:
-            step_f = float(self._ramp_step_edit.text().replace(",", "."))
-            ramp_step_raw = max(0, round(step_f * 10))   # 0.1 V/bit
+            ramp_step_v = max(0.0, float(self._ramp_step_edit.text().replace(",", ".")))
         except ValueError:
-            ramp_step_raw = 100  # default 10 V
+            ramp_step_v = 10.0  # default 10 V
 
         try:
-            ramp_time_ms = int(self._ramp_time_edit.text())
-            ramp_time_ms = max(self._RAMP_TIME_MIN, min(self._RAMP_TIME_MAX, ramp_time_ms))
+            ramp_time_s = float(self._ramp_time_edit.text().replace(",", "."))
+            ramp_time_s = max(self._RAMP_TIME_MIN, min(self._RAMP_TIME_MAX, ramp_time_s))
         except ValueError:
-            ramp_time_ms = 1000  # default 1 s
+            ramp_time_s = 1.0  # default 1 s
 
-        self.apply_requested.emit(v_raw, a_raw, enable_ramp, ramp_step_raw, ramp_time_ms)
+        self.apply_requested.emit(voltage_v, current_a, enable_ramp, ramp_step_v, ramp_time_s)

@@ -100,7 +100,7 @@ VAR_EXT_FAULTS      = "MAIN.stStatus.wExtFaultWarningBits"
 VAR_MODULE_RUNNING  = "MAIN.stStatus.bModuleRunning"
 VAR_STATUS_TEXT     = "MAIN.stStatus.sStatusText"
 VAR_CONTROL_STATE   = "MAIN.stStatus.eControlState"
-VAR_RAMP_CURR_VOLT  = "MAIN.stStatus.nRampCurrentVoltage"
+VAR_RAMP_CURR_VOLT  = "MAIN.stStatus.rRampCurrentVoltage"
 VAR_RAMP_COMPLETE   = "MAIN.stStatus.bRampComplete"
 
 # CAN communication diagnostics (MAIN.fbComm)
@@ -115,15 +115,18 @@ VAR_CLEAR_FAULT     = "MAIN.stSettings.bClearFault"
 VAR_UPDATE_VI       = "MAIN.stSettings.bUpdateSetpoint"
 
 # Setpoints (MAIN.stSettings)
-VAR_TARGET_VOLTAGE  = "MAIN.stSettings.nTargetVoltage"
-VAR_TARGET_CURRENT  = "MAIN.stSettings.nTargetCurrent"
+VAR_TARGET_VOLTAGE  = "MAIN.stSettings.rTargetVoltage"
+VAR_TARGET_CURRENT  = "MAIN.stSettings.rTargetCurrent"
+VAR_MAX_VOLTAGE     = "MAIN.stSettings.rMaxVoltage"
+VAR_MAX_CURRENT     = "MAIN.stSettings.rMaxCurrent"
 VAR_MODULE_ADDRESS  = "MAIN.stSettings.nModuleAddress"
 VAR_MASTER_ADDRESS  = "MAIN.stSettings.nMasterAddress"
 
 # Voltage ramp / soft-start (MAIN.stSettings)
 VAR_ENABLE_RAMP     = "MAIN.stSettings.bEnableRamp"
-VAR_RAMP_STEP       = "MAIN.stSettings.nRampVoltageStep"
-VAR_RAMP_TIME_MS    = "MAIN.stSettings.tRampStepTime"   # TIME stored as DWORD ms
+VAR_RAMP_STEP       = "MAIN.stSettings.rRampVoltageStep"
+VAR_RAMP_TIME_S     = "MAIN.stSettings.rRampStepTime_s"   # Step time in seconds (REAL)
+VAR_HEARTBEAT       = "MAIN.stSettings.bEnableHeartbeat"
 
 # FB_Tonhe30kW_Module internals — diagnostic read-only (MAIN.fbModule)
 VAR_RETRY_COUNT     = "MAIN.fbModule.nRetryCount"
