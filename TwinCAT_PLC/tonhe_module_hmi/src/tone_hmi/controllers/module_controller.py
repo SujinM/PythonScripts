@@ -88,6 +88,7 @@ class ModuleController(QObject):
 
         # Wire setpoint panel
         setpoint_panel.apply_requested.connect(self._on_apply_setpoint)
+        setpoint_panel.update_vi_requested.connect(self._on_update_vi)
 
     # ── Connection state callbacks ────────────────────────────────────────────
 
@@ -234,17 +235,28 @@ class ModuleController(QObject):
             self._ctx.write_variable(VAR_ENABLE_RAMP, enable_ramp)
             self._ctx.write_variable(VAR_RAMP_STEP, ramp_step_v)
             self._ctx.write_variable(VAR_RAMP_TIME_S, ramp_time_s)
-            self._ctx.write_variable(VAR_UPDATE_VI, True)
             log.info(
-                "Setpoint written: %.1f V / %.2f A  ramp=%s step=%.1f V time=%.2f s",
+                "Setpoints written to PLC: %.1f V / %.2f A  ramp=%s step=%.1f V time=%.2f s",
                 voltage_v, current_a, enable_ramp, ramp_step_v, ramp_time_s,
             )
             self.status_message.emit(
-                f"Setpoint applied: {voltage_v:.1f} V / {current_a:.2f} A"
+                f"Setpoints written: {voltage_v:.1f} V / {current_a:.2f} A"
                 + (f"  ramp: {ramp_step_v:.1f} V every {ramp_time_s:.2f} s" if enable_ramp else "")
+                + "  ← now press 'Send Update Signal' to apply"
             )
         except Exception as exc:
             self.error_occurred.emit(f"Setpoint write failed: {exc}")
+
+    @pyqtSlot()
+    def _on_update_vi(self) -> None:
+        try:
+            # Write TRUE — the PLC resets bUpdateSetpoint to FALSE itself
+            # after every fbModule() call, guaranteeing a clean rising edge.
+            self._ctx.write_variable(VAR_UPDATE_VI, True)
+            log.info("bUpdateSetpoint pulsed TRUE")
+            self.status_message.emit("Update signal sent — PLC applying new setpoints")
+        except Exception as exc:
+            self.error_occurred.emit(f"Update signal failed: {exc}")
 
     def teardown(self) -> None:
         self._stop_poll()

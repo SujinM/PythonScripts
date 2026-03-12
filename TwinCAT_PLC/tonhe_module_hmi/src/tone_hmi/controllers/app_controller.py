@@ -149,6 +149,8 @@ class AppController(QObject):
         if default_config.exists():
             try:
                 self._load_config(str(default_config))
+                # Update QSettings so future startups use this canonical path
+                settings.setValue(SETTING_CONFIG_PATH, str(default_config))
             except Exception:
                 log.warning("Default config also failed to load: %s", default_config)
 

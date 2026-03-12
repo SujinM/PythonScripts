@@ -93,7 +93,10 @@ class AppContext:
         return var.current_value if var else None
 
     def write_variable(self, name: str, value) -> None:
-        """Write *value* to a PLC variable by name.  Silently ignores unknown names."""
+        """Write *value* to a PLC variable by name.
+
+        Raises exceptions on failure so callers can handle and report errors.
+        """
         if not self.write_service:
             return
         # In mock mode the registry may not contain every symbol —
@@ -101,5 +104,23 @@ class AppContext:
         # mock state machine regardless of what the registry holds.
         if getattr(self, "_mock_mode", False):
             self.ads_client.write_by_name(name, value, None)
-        else:
-            self.write_service.write_variable_safe(name, value)
+            return
+        # Auto-register variables that are missing from the registry.
+        # This happens when QSettings restores an older config file that
+        # pre-dates the current variable set.  We infer the PLC type from
+        # the Python value so the write can still proceed correctly.
+        if self.registry and not self.registry.contains(name):
+            plc_type = self._infer_plc_type(value)
+            self.registry.register(name, plc_type)
+        self.write_service.write_variable(name, value)
+
+    @staticmethod
+    def _infer_plc_type(value) -> str:
+        """Return a PLC type string suitable for *value*'s Python type."""
+        if isinstance(value, bool):
+            return "BOOL"
+        if isinstance(value, float):
+            return "REAL"
+        if isinstance(value, int):
+            return "INT"
+        return "STRING"

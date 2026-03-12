@@ -41,6 +41,7 @@ class SetpointPanel(QGroupBox):
     """
 
     apply_requested = pyqtSignal(float, float, bool, float, float)
+    update_vi_requested = pyqtSignal()
 
     # Limits from TONHE V1.3 spec (realistic maximums)
     _VOLT_MIN = 0.0
@@ -95,14 +96,14 @@ class SetpointPanel(QGroupBox):
         self._ramp_voltage_live = self._make_live_label("–––  V")
         self._ramp_voltage_live.setToolTip("Current ramp voltage during soft-start")
 
-        # ── Apply button ──────────────────────────────────────────────────
-        self._btn_apply = QPushButton("⬆   Apply Setpoints")
+        # ── Write Setpoints button ────────────────────────────────────────
+        self._btn_apply = QPushButton("⬆   Write Setpoints")
         self._btn_apply.setObjectName("btnApplySetpoint")
         self._btn_apply.setFixedSize(170, 34)
         self._btn_apply.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
         self._btn_apply.setCursor(Qt.CursorShape.PointingHandCursor)
         self._btn_apply.setToolTip(
-            "Write voltage/current setpoints and ramp settings, then pulse bUpdateSetpoint"
+            "Write voltage/current setpoints and ramp settings to PLC memory (stSettings)"
         )
         self._btn_apply.setEnabled(False)
         self._btn_apply.setStyleSheet(
@@ -115,7 +116,28 @@ class SetpointPanel(QGroupBox):
             "QPushButton#btnApplySetpoint:disabled { background: #555; color: #888; }"
         )
 
+        # ── Send bUpdateSetpoint button ───────────────────────────────────
+        self._btn_update_vi = QPushButton("↻   Send Update Signal")
+        self._btn_update_vi.setObjectName("btnUpdateVI")
+        self._btn_update_vi.setFixedSize(170, 34)
+        self._btn_update_vi.setFont(QFont("Segoe UI", 9, QFont.Weight.Bold))
+        self._btn_update_vi.setCursor(Qt.CursorShape.PointingHandCursor)
+        self._btn_update_vi.setToolTip(
+            "Pulse bUpdateSetpoint = TRUE so the PLC applies the written V/I setpoints"
+        )
+        self._btn_update_vi.setEnabled(False)
+        self._btn_update_vi.setStyleSheet(
+            "QPushButton#btnUpdateVI {"
+            "  background: #2e7d32; color: #ffffff;"
+            "  border: none; border-radius: 6px;"
+            "}"
+            "QPushButton#btnUpdateVI:hover  { background: #388e3c; }"
+            "QPushButton#btnUpdateVI:pressed { background: #1b5e20; }"
+            "QPushButton#btnUpdateVI:disabled { background: #555; color: #888; }"
+        )
+
         self._btn_apply.clicked.connect(self._on_apply)
+        self._btn_update_vi.clicked.connect(self._on_update_vi)
         self._volt_edit.returnPressed.connect(self._on_apply)
         self._curr_edit.returnPressed.connect(self._on_apply)
 
@@ -202,10 +224,12 @@ class SetpointPanel(QGroupBox):
         ramp_grid.addWidget(self._ramp_time_edit,             2, 1)
         ramp_grid.addWidget(self._make_unit("s"),             2, 2)
 
-        # ── Apply row ──────────────────────────────────────────────────────
+        # ── Button row ─────────────────────────────────────────────────────
         apply_row = QHBoxLayout()
         apply_row.setContentsMargins(0, 0, 0, 0)
+        apply_row.setSpacing(8)
         apply_row.addWidget(self._btn_apply)
+        apply_row.addWidget(self._btn_update_vi)
         apply_row.addStretch()
 
         # ── Assemble ───────────────────────────────────────────────────────
@@ -225,9 +249,11 @@ class SetpointPanel(QGroupBox):
 
     def set_connected(self) -> None:
         self._btn_apply.setEnabled(True)
+        self._btn_update_vi.setEnabled(True)
 
     def set_disconnected(self) -> None:
         self._btn_apply.setEnabled(False)
+        self._btn_update_vi.setEnabled(False)
 
     def update_live_voltage(self, v: float | None) -> None:
         self._volt_live.setText(f"{v:.1f} V" if v is not None else "––– V")
@@ -286,3 +312,6 @@ class SetpointPanel(QGroupBox):
             ramp_time_s = 1.0  # default 1 s
 
         self.apply_requested.emit(voltage_v, current_a, enable_ramp, ramp_step_v, ramp_time_s)
+
+    def _on_update_vi(self) -> None:
+        self.update_vi_requested.emit()
