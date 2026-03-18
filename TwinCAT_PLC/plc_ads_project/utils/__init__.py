@@ -1,5 +1,5 @@
 # utils package
-from .logger import setup_logger, get_logger
+from .logger import setup_logger, get_logger, set_correlation_id
 from .custom_exceptions import (
     PLCConnectionError,
     PLCReadError,
