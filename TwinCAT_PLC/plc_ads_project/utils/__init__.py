@@ -13,6 +13,7 @@ from .custom_exceptions import (
 __all__ = [
     "setup_logger",
     "get_logger",
+    "set_correlation_id",
     "PLCConnectionError",
     "PLCReadError",
     "PLCWriteError",
