@@ -7,6 +7,8 @@ All caching lives here; adapters are always called without state.
 
 from __future__ import annotations
 
+from concurrent.futures import ThreadPoolExecutor, as_completed
+
 from app.brokers.registry import BrokerRegistry
 from app.core.cache import InMemoryCache
 from app.core.config import get_settings
@@ -70,8 +72,11 @@ class PortfolioService:
         if cached is not None:
             return cached  # type: ignore[return-value]
 
-        holdings = self.get_holdings(broker_id)
-        positions = self.get_positions(broker_id)
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            f_holdings = executor.submit(self.get_holdings, broker_id)
+            f_positions = executor.submit(self.get_positions, broker_id)
+            holdings = f_holdings.result()
+            positions = f_positions.result()
 
         total_invested = sum(h.invested_value for h in holdings)
         total_current = sum(h.current_value for h in holdings)

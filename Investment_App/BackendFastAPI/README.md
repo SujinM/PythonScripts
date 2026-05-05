@@ -10,6 +10,35 @@ A scalable **FastAPI** backend that connects to multiple broker APIs (Upstox, eT
 API Routes  →  Services  →  BrokerRegistry  →  BrokerAdapters  →  External APIs
 ```
 
+### CLI vs Server — two entry points, same logic
+
+The CLI and the FastAPI server are independent entry points that share the same underlying code.
+The server is **not** required for the CLI to work.
+
+**CLI path** (`python -m app.cli holdings etoro`):
+```
+app/cli.py
+  └─► PortfolioService
+        └─► EToroAdapter
+              └─► eToro API  (direct HTTP — no server involved)
+```
+
+**Server path** (`GET http://127.0.0.1:8000/api/v1/etoro/holdings`):
+```
+uvicorn → FastAPI routes
+  └─► PortfolioService
+        └─► EToroAdapter
+              └─► eToro API  (direct HTTP)
+```
+
+Both paths call the **same `PortfolioService` and `EToroAdapter`** — the server is just an HTTP
+wrapper around them. The CLI imports and calls those classes directly in-process.
+
+The server is only needed when:
+- A **frontend / browser** needs to hit the REST API
+- Another service calls `http://127.0.0.1:8000/api/v1/...`
+- You want to use the Swagger UI at `/docs`
+
 ### eToro Adapter — uses the etoro_app library
 
 The `EToroAdapter` delegates entirely to the `etoro_app` library, which lives in `Investment_App/etoro/etoro_app/` and is installed as an editable package.
@@ -178,18 +207,61 @@ Errors:
 ## CLI Tool
 
 ```bash
-# List registered brokers
+# List registered brokers (shows all configured brokers)
 python -m app.cli brokers
 
-# View holdings
+# ── Holdings ──────────────────────────────────────────────────────────────────
+
+# View long-term holdings
 python -m app.cli holdings upstox
+python -m app.cli holdings etoro
 
-# View portfolio summary
+# ── Positions ─────────────────────────────────────────────────────────────────
+
+# View open / intraday positions
+python -m app.cli positions upstox
+python -m app.cli positions etoro
+
+# ── Trades ────────────────────────────────────────────────────────────────────
+
+# View today's executed trades
+python -m app.cli trades upstox
+python -m app.cli trades etoro
+
+# ── Summary ───────────────────────────────────────────────────────────────────
+
+# View portfolio summary (invested, current value, unrealised P&L, return %)
 python -m app.cli summary upstox
+python -m app.cli summary etoro
 
-# Start server
+# ── Analysis ──────────────────────────────────────────────────────────────────
+
+# Full analysis: P&L, top gainers/losers, exchange allocation, alerts
+python -m app.cli analysis upstox
+python -m app.cli analysis etoro
+
+# ── Alerts ────────────────────────────────────────────────────────────────────
+
+# Active alerts only (holdings down >5% or up >20%)
+python -m app.cli alerts upstox
+python -m app.cli alerts etoro
+
+# ── Cache ─────────────────────────────────────────────────────────────────────
+
+# Invalidate cached data and force a fresh API fetch
+python -m app.cli invalidate upstox
+python -m app.cli invalidate etoro
+
+# ── Server ────────────────────────────────────────────────────────────────────
+
+# Start server (development — hot reload)
 python -m app.cli serve --port 8000 --reload
+
+# Start server (production — custom host)
+python -m app.cli serve --host 0.0.0.0 --port 8000
 ```
+
+**Available broker IDs:** `upstox`, `etoro`
 
 ---
 
