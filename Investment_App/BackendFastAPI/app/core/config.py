@@ -33,7 +33,8 @@ class Settings(BaseSettings):
 
     # eToro
     etoro_api_key: str = ""
-    etoro_base_url: str = "https://api.etoro.com/v1"
+    etoro_user_key: str = ""
+    etoro_base_url: str = "https://public-api.etoro.com"
 
     # Optional Redis
     redis_url: str = ""
