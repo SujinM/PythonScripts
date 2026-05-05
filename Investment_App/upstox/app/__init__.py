@@ -1,0 +1,1 @@
+"""Upstox Investment Analyzer package."""
