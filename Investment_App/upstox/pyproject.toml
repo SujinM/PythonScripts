@@ -1,6 +1,6 @@
 [build-system]
 requires = ["setuptools>=70", "wheel"]
-build-backend = "setuptools.backends.legacy:build"
+build-backend = "setuptools.build_meta"
 
 [project]
 name = "upstox-analyzer"
@@ -18,6 +18,11 @@ dependencies = [
 
 [project.scripts]
 upstox-analyzer = "app.main:app"
+
+[tool.setuptools.packages.find]
+# Expose both 'app' (CLI entry point) and 'upstox_app' (importable library)
+where = ["."]
+include = ["app*", "upstox_app*"]
 
 [project.optional-dependencies]
 dev = [
