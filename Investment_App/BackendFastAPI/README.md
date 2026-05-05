@@ -10,22 +10,26 @@ A scalable **FastAPI** backend that connects to multiple broker APIs (Upstox, eT
 API Routes  →  Services  →  BrokerRegistry  →  BrokerAdapters  →  External APIs
 ```
 
-### Upstox Adapter — uses the upstox_app library
+### eToro Adapter — uses the etoro_app library
 
-The `UpstoxAdapter` does **not** contain its own HTTP client. It delegates entirely to the `upstox_app` library, which lives in `Investment_App/upstox/upstox_app/` and is installed as an editable package.
+The `EToroAdapter` delegates entirely to the `etoro_app` library, which lives in `Investment_App/etoro/etoro_app/` and is installed as an editable package.
 
 ```
-BackendFastAPI UpstoxAdapter
+BackendFastAPI EToroAdapter
       │
-      ├─ upstox_app.api.upstox_client.UpstoxClient     (requests + OAuth2 + retry)
-      ├─ upstox_app.services.portfolio_service          (fetch + normalise to dataclasses)
-      └─ _SettingsConfig bridge                         (maps BackendFastAPI Settings → upstox Config)
+      ├─ etoro_app.api.etoro_client.EToroClient       (requests + API-key headers + retry)
+      ├─ etoro_app.services.portfolio_service          (fetch + enrich + normalise to dataclasses)
+      └─ _SettingsConfig bridge                        (maps BackendFastAPI Settings → etoro Config)
               │
               ▼  _to_holding / _to_position / _to_trade converters
-  app.models.portfolio Pydantic models  (used by all routes and services)
+  app.models.portfolio Pydantic models
 ```
 
-This means: when the upstox app's HTTP logic or normalisation is updated, BackendFastAPI benefits automatically without any changes.
+eToro authentication uses **two static API keys** (no OAuth2):
+- `ETORO_API_KEY` — Public API Key (`x-api-key` header)
+- `ETORO_USER_KEY` — User Key (`x-user-key` header)
+
+Get both from: eToro account → Settings → Trading → API Key Management
 
 ```
 BackendFastAPI/
@@ -43,8 +47,8 @@ BackendFastAPI/
 │   ├── brokers/
 │   │   ├── base.py                # IBrokerAdapter ABC
 │   │   ├── registry.py            # BrokerRegistry — holds all adapters
-│   │   ├── upstox.py              # UpstoxAdapter
-│   │   └── etoro.py               # EToroAdapter (stub)
+│   │   ├── upstox.py              # UpstoxAdapter  (delegates to upstox_app)
+│   │   └── etoro.py               # EToroAdapter   (delegates to etoro_app)
 │   ├── services/
 │   │   ├── portfolio_service.py   # Orchestrates broker calls + cache
 │   │   └── analysis_service.py    # Pure analysis: alerts, P&L, allocation
@@ -81,7 +85,11 @@ source .venv/bin/activate     # Linux / macOS
 # 3. Install dependencies
 pip install -r requirements.txt
 
-# 4. Configure environment
+# 4. Install broker libraries as editable packages
+pip install -e ../upstox     # provides upstox_app
+pip install -e ../etoro      # provides etoro_app
+
+# 5. Configure environment
 cp .env.example .env
 # Edit .env and fill in your broker credentials
 ```
@@ -97,9 +105,11 @@ cp .env.example .env
 | `CACHE_TTL_SECONDS` | `300` | Cache time-to-live in seconds |
 | `UPSTOX_API_KEY` | _(empty)_ | Upstox API key |
 | `UPSTOX_API_SECRET` | _(empty)_ | Upstox API secret |
-| `UPSTOX_ACCESS_TOKEN` | _(empty)_ | OAuth2 access token |
+| `UPSTOX_ACCESS_TOKEN` | _(empty)_ | OAuth2 access token (required to call Upstox) |
 | `UPSTOX_REDIRECT_URI` | `https://127.0.0.1` | OAuth2 redirect URI |
-| `ETORO_API_KEY` | _(empty)_ | eToro API key |
+| `ETORO_API_KEY` | _(empty)_ | eToro Public API Key (`x-api-key` header) |
+| `ETORO_USER_KEY` | _(empty)_ | eToro User Key (`x-user-key` header) |
+| `ETORO_BASE_URL` | `https://public-api.etoro.com` | eToro API base URL |
 | `REDIS_URL` | _(empty)_ | Optional Redis URL (in-memory used if blank) |
 
 ---
@@ -207,16 +217,14 @@ pytest tests/ -v
 
 **That is all.** No changes to routes, services, models, or any other file.
 
-### Using an existing broker app (e.g. eToro)
+### Using an existing broker app (e.g. a new broker)
 
-If you have a standalone broker app (like `Investment_App/etoro/`) with its own HTTP client and service layer, follow the same pattern as `UpstoxAdapter`:
+If you have a standalone broker app with its own HTTP client and service layer, follow the pattern used by `UpstoxAdapter` and `EToroAdapter`:
 
-1. Install the broker app as a library: `pip install -e ../etoro`
-2. Create `app/brokers/etoro.py` and delegate to the broker app's client/service
+1. Install the broker app as a library: `pip install -e ../newbroker`
+2. Create `app/brokers/newbroker.py` and delegate to the broker app's client/service
 3. Add a `_SettingsConfig`-style bridge that maps BackendFastAPI's `Settings` to the broker app's config interface
 4. Convert the broker app's models to BackendFastAPI's unified Pydantic models
-
-The `UpstoxAdapter` (see [app/brokers/upstox.py](app/brokers/upstox.py)) is the reference implementation for this pattern.
 
 ---
 
@@ -236,9 +244,10 @@ All broker adapters normalise to these Pydantic v2 models:
 
 ## Security Notes
 
-- Access tokens are read from environment variables — never hardcoded
+- Access tokens and API keys are read from environment variables — never hardcoded
 - CORS is restricted to `[]` (empty) in `production` mode
-- All external broker calls use `httpx` with a 15-second timeout
+- All external broker calls use HTTPS with a configurable timeout
+- Upstox uses OAuth2 access tokens; eToro uses static API key pair (`x-api-key` + `x-user-key`)
 - Auth errors return HTTP 401; broker errors return appropriate 4xx/5xx codes
 
 ---

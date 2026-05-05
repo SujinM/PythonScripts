@@ -10,5 +10,6 @@ rich>=13.7.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-mock>=3.14.0
-# upstox_app is pulled in via: pip install -e ../upstox
-httpx>=0.27.0
+# Broker libraries — install as editable packages from their source folders:
+#   pip install -e ../upstox     (provides upstox_app)
+#   pip install -e ../etoro      (provides etoro_app)
