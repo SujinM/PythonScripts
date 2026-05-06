@@ -18,6 +18,9 @@ using Microsoft.Extensions.DependencyInjection;
 
 var env = Environment.GetEnvironmentVariable("DOTNET_ENVIRONMENT") ?? "Production";
 
+// Ensure ₹ and other Unicode characters render correctly on Windows console.
+Console.OutputEncoding = System.Text.Encoding.UTF8;
+
 var configuration = new ConfigurationBuilder()
     .SetBasePath(AppContext.BaseDirectory)
     .AddJsonFile("appsettings.json", optional: false, reloadOnChange: false)
@@ -44,9 +47,11 @@ services.AddHttpClient<ApiClient>(client =>
 });
 
 services.AddTransient<PortfolioService>();
+services.AddTransient<LiveTickService>();
 
 var provider = services.BuildServiceProvider();
-var portfolio = provider.GetRequiredService<PortfolioService>();
+var portfolio    = provider.GetRequiredService<PortfolioService>();
+var liveTickSvc  = provider.GetRequiredService<LiveTickService>();
 
 // ── Startup banner ─────────────────────────────────────────────────────────────
 
@@ -141,7 +146,7 @@ while (true)
                 }
                 break;
 
-            // ── L: Live Dashboard ─────────────────────────────────────────
+            // ── L: Live Dashboard (REST auto-refresh) ─────────────────────
             case "l":
             case "L":
                 suppressPressAnyKey = true;
@@ -161,6 +166,21 @@ while (true)
                 }
                 else
                     AppLogger.Warn("Live Dashboard is only supported on Windows.");
+                break;
+
+            // ── W: WebSocket Live Prices ──────────────────────────────────
+            case "w":
+            case "W":
+                suppressPressAnyKey = true;
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                {
+                    Console.Write("  Instrument keys (comma-separated, or Enter to auto-resolve holdings): ");
+                    string wsInstruments = Console.ReadLine()?.Trim() ?? "";
+                    await ClientConsolApp.Display.LiveTickDashboard.RunAsync(
+                        liveTickSvc, currentBroker, wsInstruments, cts.Token);
+                }
+                else
+                    AppLogger.Warn("WS Live Prices is only supported on Windows.");
                 break;
 
             default:

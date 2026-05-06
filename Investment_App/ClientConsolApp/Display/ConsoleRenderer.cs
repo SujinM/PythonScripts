@@ -18,12 +18,17 @@ public static class ConsoleRenderer
         Console.ForegroundColor = saved;
     }
 
-    private static void WritePnl(double value, string format = "N2")
+    private static string Cur(string broker) =>
+        broker.Equals("etoro", StringComparison.OrdinalIgnoreCase) ? "$" : "\u20b9";
+
+    private static void WritePnl(double value, string format = "N2", string prefix = "")
     {
-        string text = value.ToString(format);
         var color = value >= 0 ? ConsoleColor.Green : ConsoleColor.Red;
         string sign = value > 0 ? "+" : "";
-        WriteColored($"{sign}{text}", color, newLine: false);
+        string body = value < 0
+            ? "-" + prefix + Math.Abs(value).ToString(format)
+            : prefix + value.ToString(format);
+        WriteColored($"{sign}{body}", color, newLine: false);
     }
 
     // ── Main menu ─────────────────────────────────────────────────────────
@@ -50,7 +55,8 @@ public static class ConsoleRenderer
         Console.WriteLine("   8.  Invalidate Cache");
         Console.WriteLine("   9.  Switch Broker");
         WriteColored("  ── Live ─────────────────────────────────────", ConsoleColor.DarkGray);
-        WriteColored("   L.  Live Dashboard  (auto-refresh)", ConsoleColor.Yellow);
+        WriteColored("   L.  Live Dashboard  (REST auto-refresh)", ConsoleColor.Yellow);
+        WriteColored("   W.  WS Live Prices  (WebSocket, sub-second)", ConsoleColor.Yellow);
         Console.WriteLine("   0.  Exit");
         Console.WriteLine();
         WriteColored("  ───────────────────────────────────────────────", ConsoleColor.DarkGray);
@@ -64,15 +70,16 @@ public static class ConsoleRenderer
         Console.WriteLine();
         WriteColored($"  Portfolio Summary — {s.Broker.ToUpper()}", ConsoleColor.Cyan);
         WriteColored($"  {new string('─', 44)}", ConsoleColor.DarkCyan);
+        var cur = Cur(s.Broker);
         Console.WriteLine($"  {"Holdings:",-22} {s.HoldingsCount}");
         Console.WriteLine($"  {"Positions:",-22} {s.PositionsCount}");
-        Console.WriteLine($"  {"Invested:",-22} {s.TotalInvested:N2}");
-        Console.WriteLine($"  {"Current Value:",-22} {s.TotalCurrentValue:N2}");
+        Console.WriteLine($"  {"Invested:",-22} {cur}{s.TotalInvested:N2}");
+        Console.WriteLine($"  {"Current Value:",-22} {cur}{s.TotalCurrentValue:N2}");
         Console.Write($"  {"Unrealised P&L:",-22} ");
-        WritePnl(s.TotalUnrealisedPnl);
+        WritePnl(s.TotalUnrealisedPnl, prefix: cur);
         Console.WriteLine();
         Console.Write($"  {"Realised P&L:",-22} ");
-        WritePnl(s.TotalRealisedPnl);
+        WritePnl(s.TotalRealisedPnl, prefix: cur);
         Console.WriteLine();
         Console.Write($"  {"Overall Return:",-22} ");
         WritePnl(s.OverallReturnPct, "F2");
@@ -83,7 +90,7 @@ public static class ConsoleRenderer
             Console.WriteLine();
             WriteColored("  Top Gainers:", ConsoleColor.Green);
             foreach (var h in s.TopGainers)
-                Console.WriteLine($"    {h.TradingSymbol,-20}  {h.ReturnPct:+0.00;-0.00}%   P&L: {h.UnrealisedPnl:N2}");
+                Console.WriteLine($"    {h.TradingSymbol,-20}  {h.ReturnPct:+0.00;-0.00}%   P&L: {cur}{h.UnrealisedPnl:N2}");
         }
 
         if (s.TopLosers.Count > 0)
@@ -91,7 +98,7 @@ public static class ConsoleRenderer
             Console.WriteLine();
             WriteColored("  Top Losers:", ConsoleColor.Red);
             foreach (var h in s.TopLosers)
-                Console.WriteLine($"    {h.TradingSymbol,-20}  {h.ReturnPct:+0.00;-0.00}%   P&L: {h.UnrealisedPnl:N2}");
+                Console.WriteLine($"    {h.TradingSymbol,-20}  {h.ReturnPct:+0.00;-0.00}%   P&L: {cur}{h.UnrealisedPnl:N2}");
         }
         Console.WriteLine();
     }
@@ -116,15 +123,21 @@ public static class ConsoleRenderer
             ConsoleColor.DarkGray);
         WriteColored("  " + new string('─', 90), ConsoleColor.DarkGray);
 
+        var cur = Cur(broker);
         foreach (var h in holdings)
         {
-            Console.Write(string.Format("  {0,-22} {1,-8} {2,10:N3} {3,10:N2} {4,11:N2} ",
+            string avgP  = (cur + h.AveragePrice.ToString("N2")).PadLeft(10);
+            string lastP = (cur + h.LastPrice.ToString("N2")).PadLeft(11);
+            Console.Write(string.Format("  {0,-22} {1,-8} {2,10:N3} {3} {4} ",
                 TruncateSymbol(h.TradingSymbol, 22),
                 h.Exchange,
                 h.Quantity,
-                h.AveragePrice,
-                h.LastPrice));
-            WriteColored($"{h.UnrealisedPnl,12:N2}", h.UnrealisedPnl >= 0 ? ConsoleColor.Green : ConsoleColor.Red, newLine: false);
+                avgP,
+                lastP));
+            string pnl = h.UnrealisedPnl >= 0
+                ? (cur + h.UnrealisedPnl.ToString("N2")).PadLeft(12)
+                : ("-" + cur + Math.Abs(h.UnrealisedPnl).ToString("N2")).PadLeft(12);
+            WriteColored(pnl, h.UnrealisedPnl >= 0 ? ConsoleColor.Green : ConsoleColor.Red, newLine: false);
             WriteColored($" {h.ReturnPct,8:+0.00;-0.00}%", h.ReturnPct >= 0 ? ConsoleColor.Green : ConsoleColor.Red);
         }
         Console.WriteLine();
@@ -149,16 +162,22 @@ public static class ConsoleRenderer
             ConsoleColor.DarkGray);
         WriteColored("  " + new string('─', 82), ConsoleColor.DarkGray);
 
+        var cur = Cur(broker);
         foreach (var p in positions)
         {
-            Console.Write(string.Format("  {0,-22} {1,-8} {2,-6} {3,6} {4,10:N2} {5,10:N2} ",
+            string buyP  = (cur + p.BuyPrice.ToString("N2")).PadLeft(10);
+            string sellP = (cur + p.SellPrice.ToString("N2")).PadLeft(10);
+            Console.Write(string.Format("  {0,-22} {1,-8} {2,-6} {3,6} {4} {5} ",
                 TruncateSymbol(p.TradingSymbol, 22),
                 p.Exchange,
                 p.Product,
                 p.Quantity,
-                p.BuyPrice,
-                p.SellPrice));
-            WriteColored($"{p.TotalPnl,12:N2}", p.TotalPnl >= 0 ? ConsoleColor.Green : ConsoleColor.Red);
+                buyP,
+                sellP));
+            string pnl = p.TotalPnl >= 0
+                ? (cur + p.TotalPnl.ToString("N2")).PadLeft(12)
+                : ("-" + cur + Math.Abs(p.TotalPnl).ToString("N2")).PadLeft(12);
+            WriteColored(pnl, p.TotalPnl >= 0 ? ConsoleColor.Green : ConsoleColor.Red);
         }
         Console.WriteLine();
     }
@@ -182,14 +201,17 @@ public static class ConsoleRenderer
             ConsoleColor.DarkGray);
         WriteColored("  " + new string('─', 92), ConsoleColor.DarkGray);
 
+        var cur = Cur(broker);
         foreach (var t in trades)
         {
             bool isBuy = t.TransactionType.Equals("BUY", StringComparison.OrdinalIgnoreCase);
             Console.Write(string.Format("  {0,-22} {1,-8} ",
                 TruncateSymbol(t.TradingSymbol, 22), t.Exchange));
             WriteColored($"{t.TransactionType,-5}", isBuy ? ConsoleColor.Green : ConsoleColor.Red, newLine: false);
-            Console.WriteLine(string.Format(" {0,8:N3} {1,10:N2} {2,12:N2} {3,-20}",
-                t.Quantity, t.Price, t.TradeValue,
+            string price = (cur + t.Price.ToString("N2")).PadLeft(10);
+            string val   = (cur + t.TradeValue.ToString("N2")).PadLeft(12);
+            Console.WriteLine(string.Format(" {0,8:N3} {1} {2} {3,-20}",
+                t.Quantity, price, val,
                 t.TradeDate?.ToString("yyyy-MM-dd HH:mm") ?? "—"));
         }
         Console.WriteLine();
@@ -202,11 +224,12 @@ public static class ConsoleRenderer
         Console.WriteLine();
         WriteColored($"  Full Analysis — {a.Broker.ToUpper()}", ConsoleColor.Cyan);
         WriteColored($"  {new string('─', 44)}", ConsoleColor.DarkCyan);
+        var cur = Cur(a.Broker);
         Console.WriteLine($"  {"Holdings:",-26} {a.HoldingsCount}");
-        Console.WriteLine($"  {"Invested:",-26} {a.TotalInvested:N2}");
-        Console.WriteLine($"  {"Current Value:",-26} {a.TotalCurrentValue:N2}");
+        Console.WriteLine($"  {"Invested:",-26} {cur}{a.TotalInvested:N2}");
+        Console.WriteLine($"  {"Current Value:",-26} {cur}{a.TotalCurrentValue:N2}");
         Console.Write($"  {"Total P&L:",-26} ");
-        WritePnl(a.TotalPnl);
+        WritePnl(a.TotalPnl, prefix: cur);
         Console.WriteLine();
         Console.Write($"  {"Overall Return:",-26} ");
         WritePnl(a.OverallReturnPct, "F2");
@@ -218,7 +241,7 @@ public static class ConsoleRenderer
             Console.WriteLine();
             WriteColored("  Exchange Allocation:", ConsoleColor.DarkCyan);
             foreach (var s in a.SectorAllocation)
-                Console.WriteLine($"    {s.Exchange,-10}  {s.WeightPct,6:N2}%   {s.CurrentValue:N2}");
+                Console.WriteLine($"    {s.Exchange,-10}  {s.WeightPct,6:N2}%   {cur}{s.CurrentValue:N2}");
         }
 
         // Top gainers
@@ -227,7 +250,7 @@ public static class ConsoleRenderer
             Console.WriteLine();
             WriteColored("  Top Gainers:", ConsoleColor.Green);
             foreach (var h in a.TopGainers)
-                Console.WriteLine($"    {h.TradingSymbol,-22}  {h.ReturnPct:+0.00;-0.00}%   {h.UnrealisedPnl:N2}");
+                Console.WriteLine($"    {h.TradingSymbol,-22}  {h.ReturnPct:+0.00;-0.00}%   {cur}{h.UnrealisedPnl:N2}");
         }
 
         // Top losers
@@ -236,7 +259,7 @@ public static class ConsoleRenderer
             Console.WriteLine();
             WriteColored("  Top Losers:", ConsoleColor.Red);
             foreach (var h in a.TopLosers)
-                Console.WriteLine($"    {h.TradingSymbol,-22}  {h.ReturnPct:+0.00;-0.00}%   {h.UnrealisedPnl:N2}");
+                Console.WriteLine($"    {h.TradingSymbol,-22}  {h.ReturnPct:+0.00;-0.00}%   {cur}{h.UnrealisedPnl:N2}");
         }
 
         // Alerts
