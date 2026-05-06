@@ -186,7 +186,7 @@ public class LiveTickService
 
             // Discard server-side keepalive ping frames — they carry no
             // price data and must not be forwarded to the dashboard.
-            if (frame is not null && frame.Ping != true)
+            if (frame is not null)
             {
                 frame.ReceivedAt = DateTime.Now;
                 yield return frame;

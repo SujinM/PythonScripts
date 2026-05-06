@@ -53,10 +53,11 @@ public static class LiveTickDashboard
     /// <summary>Previous LTP/BestPrice per instrument — for flash highlight.</summary>
     private static readonly Dictionary<string, double> _prev = new();
 
-    private static int _frameCount   = 0;
-    private static DateTime _lastTick = DateTime.MinValue;
-    private static string   _statusMsg = "  Connecting...";
-    private static int      _footerRow = 0;
+    private static int _frameCount    = 0;
+    private static DateTime _lastTick    = DateTime.MinValue;
+    private static DateTime _lastContact = DateTime.MinValue;  // last frame of any kind (tick or ping)
+    private static string   _statusMsg   = "  Connecting...";
+    private static int      _footerRow   = 0;
 
     // ── Entry point ───────────────────────────────────────────────────────
 
@@ -77,9 +78,10 @@ public static class LiveTickDashboard
 
         _latest.Clear();
         _prev.Clear();
-        _frameCount = 0;
-        _lastTick   = DateTime.MinValue;
-        _statusMsg  = "  Connecting to WebSocket...";
+        _frameCount   = 0;
+        _lastTick     = DateTime.MinValue;
+        _lastContact  = DateTime.MinValue;
+        _statusMsg    = "  Connecting to WebSocket...";
 
         try
         {
@@ -117,6 +119,17 @@ public static class LiveTickDashboard
             // ── WebSocket stream loop ─────────────────────────────────────
             await foreach (var frame in liveTickService.StreamAsync(broker, instruments, cts.Token))
             {
+                // Any frame (price tick or keepalive ping) confirms the upstream connection is alive.
+                _lastContact = frame.ReceivedAt;
+
+                // Ping frames: no price data — just refresh the footer so the
+                // connection-health indicator updates, then skip the price redraw.
+                if (frame.Ping == true)
+                {
+                    try { PaintFooter(broker); } catch { }
+                    continue;
+                }
+
                 if (frame.Error is not null)
                 {
                     _statusMsg = $"  Server error: {frame.Error}";
@@ -339,12 +352,44 @@ public static class LiveTickDashboard
         Console.SetCursorPosition(0, targetRow);
         WriteLn(new string('─', Console.WindowWidth - 1), Dim);
 
-        var msg = _lastTick == DateTime.MinValue
-            ? "  Waiting for first tick..."
-            : $"  Last tick: {_lastTick:HH:mm:ss.fff}   Frames: {_frameCount}   [Q] Exit";
+        // Connection-health indicator — updates on every ping (every ~25 s)
+        string connDot;
+        ConsoleColor connColor;
+        if (_lastContact == DateTime.MinValue)
+        {
+            connDot  = "\u25cb CONNECTING";
+            connColor = WarnFg;
+        }
+        else
+        {
+            double ageSeconds = (DateTime.Now - _lastContact).TotalSeconds;
+            if (ageSeconds < 30)
+            {
+                connDot  = "\u25cf LIVE";
+                connColor = GainFg;
+            }
+            else if (ageSeconds < 90)
+            {
+                connDot  = $"\u25cf {ageSeconds:F0}s ago";
+                connColor = WarnFg;
+            }
+            else
+            {
+                connDot  = $"\u25cf {ageSeconds:F0}s ago";
+                connColor = LossFg;
+            }
+        }
+
+        // Price freshness info
+        string priceInfo = _lastTick == DateTime.MinValue
+            ? "  Waiting for first price..."
+            : $"  Last price: {_lastTick:HH:mm:ss.fff}   Frames: {_frameCount}";
 
         Console.SetCursorPosition(0, targetRow + 1);
-        WriteField(msg.PadRight(Console.WindowWidth - 1), Label);
+        WriteField(priceInfo, Label);
+        WriteField("   ", Label);
+        WriteField(connDot, connColor);
+        WriteField("   [Q] Exit".PadRight(Math.Max(0, Console.WindowWidth - Console.CursorLeft - 1)), Label);
     }
 
     private static void PaintStatus(string msg)
