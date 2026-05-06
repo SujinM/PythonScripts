@@ -81,6 +81,14 @@ public class LiveTickFrame
     [JsonPropertyName("error")]
     public string? Error { get; set; }
 
+    /// <summary>
+    /// True on keepalive ping frames emitted when eToro has been silent
+    /// for more than the server's keepalive interval (~25 s).
+    /// Callers should discard these frames — they carry no price data.
+    /// </summary>
+    [JsonPropertyName("ping")]
+    public bool? Ping { get; set; }
+
     /// <summary>Server-side Unix epoch timestamp.</summary>
     [JsonPropertyName("ts")]
     public double Ts { get; set; }
