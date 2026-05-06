@@ -176,6 +176,29 @@ class EToroLiveService:
         self._api_key = s.etoro_api_key
         self._user_key = s.etoro_user_key
 
+    @staticmethod
+    def _decode_frame(raw) -> dict | None:
+        """
+        Decode a WebSocket frame to a dict.
+
+        The eToro server may send binary frames, empty frames, or plain-text
+        non-JSON frames (e.g. a ping/keep-alive byte).  Return ``None`` for
+        anything that is not a parseable JSON object so callers can skip it.
+        """
+        if not raw:
+            return None
+        if isinstance(raw, (bytes, bytearray)):
+            try:
+                raw = raw.decode("utf-8")
+            except UnicodeDecodeError:
+                return None
+        try:
+            parsed = json.loads(raw)
+            return parsed if isinstance(parsed, dict) else None
+        except json.JSONDecodeError:
+            logger.debug("eToro WS: skipping non-JSON frame: %r", raw[:120])
+            return None
+
     async def stream(
         self,
         instrument_keys: list[str],
@@ -224,8 +247,17 @@ class EToroLiveService:
                         },
                     }))
 
-                    auth_raw = await asyncio.wait_for(ws.recv(), timeout=self._AUTH_TIMEOUT)
-                    auth_resp = json.loads(auth_raw)
+                    # Wait for the auth response — skip empty / non-JSON frames
+                    # (the server may send a ping or binary handshake frame first).
+                    auth_resp: dict | None = None
+                    deadline = asyncio.get_event_loop().time() + self._AUTH_TIMEOUT
+                    while auth_resp is None:
+                        remaining = deadline - asyncio.get_event_loop().time()
+                        if remaining <= 0:
+                            raise TimeoutError("Timed out waiting for eToro auth response")
+                        raw_auth = await asyncio.wait_for(ws.recv(), timeout=remaining)
+                        auth_resp = self._decode_frame(raw_auth)
+
                     if not auth_resp.get("success", False):
                         err = auth_resp.get("errorMessage") or auth_resp.get("errorCode", "unknown")
                         logger.error("eToro WS authentication failed: %s", err)
@@ -254,8 +286,10 @@ class EToroLiveService:
                     # ── Step 3: Process incoming push messages ─────────────
                     async for raw in ws:
                         ts = time.time()
+                        msg = self._decode_frame(raw)
+                        if msg is None:
+                            continue  # skip empty / binary / non-JSON frames
                         try:
-                            msg = json.loads(raw)
                             messages: list[dict] = msg.get("messages", [])
                             ticks: dict[str, dict] = {}
 
