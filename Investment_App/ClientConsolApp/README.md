@@ -110,6 +110,77 @@ dotnet build -c Release
 
 ---
 
+## Building a Production EXE
+
+### Quick build (EXE only)
+
+```bat
+build-release.bat
+```
+
+Produces a **self-contained, single-file Windows EXE** — no .NET installation required on the target machine:
+
+```
+bin\publish\win-x64\SujinsInvestment.exe   (~36 MB)
+```
+
+### With Windows Installer
+
+1. Install **[Inno Setup 6](https://jrsoftware.org/isdl.php)**
+2. Run:
+
+```bat
+build-release.bat /installer
+```
+
+Produces:
+
+```
+installer\Output\SujinsInvestment-Setup-1.0.0.exe
+```
+
+The installer includes:
+- Start Menu shortcut
+- Optional desktop shortcut
+- Uninstaller (Add/Remove Programs)
+- Windows 10 (1809+) version check
+
+### What `build-release.bat` does
+
+| Step | Action |
+|------|--------|
+| 1 | Regenerates `Assets/app.ico` via `create_icon.py` |
+| 2 | `dotnet publish` with the `win-x64` profile (self-contained, ReadyToRun) |
+| 3 | Runs Inno Setup compiler (only with `/installer` flag) |
+
+### Publish profile details
+
+The `Properties/PublishProfiles/win-x64.pubxml` profile sets:
+
+| Option | Value |
+|--------|-------|
+| Runtime | `win-x64` |
+| Self-contained | `true` |
+| Single file | `true` |
+| Compression | `true` |
+| ReadyToRun | `true` (faster startup) |
+| Debug symbols | stripped |
+
+### EXE metadata (Windows file properties)
+
+| Field | Value |
+|-------|-------|
+| Product name | Sujin's Investment |
+| Version | 1.0.0 |
+| Company | Sujin M |
+| Description | Portfolio management console — Upstox & eToro |
+| Copyright | © 2026 Sujin M |
+| Icon | Navy + gold investment chart (`Assets/app.ico`) |
+
+To bump the version, update `<Version>` in `ClientConsolApp.csproj` and the `#define AppVersion` in `installer/SujinsInvestment.iss`.
+
+---
+
 ## Interactive Menu
 
 ```

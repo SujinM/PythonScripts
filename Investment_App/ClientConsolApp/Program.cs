@@ -61,7 +61,8 @@ while (true)
 
     if (option == "0") break;
 
-    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(apiSettings.TimeoutSeconds + 60));
+    using var cts = new CancellationTokenSource(TimeSpan.FromSeconds(apiSettings.TimeoutSeconds * apiSettings.MaxRetries + 30));
+    bool suppressPressAnyKey = false;
 
     try
     {
@@ -140,6 +141,28 @@ while (true)
                 }
                 break;
 
+            // ── L: Live Dashboard ─────────────────────────────────────────
+            case "l":
+            case "L":
+                suppressPressAnyKey = true;
+                if (System.Runtime.InteropServices.RuntimeInformation.IsOSPlatform(System.Runtime.InteropServices.OSPlatform.Windows))
+                {
+                    Console.Write("  Refresh interval in seconds [5]: ");
+                    string? intervalInput = Console.ReadLine()?.Trim();
+                    int liveInterval = string.IsNullOrEmpty(intervalInput)
+                        ? 5
+                        : int.TryParse(intervalInput, out int parsed) ? parsed : 5;
+                    if (liveInterval < 3)
+                    {
+                        AppLogger.Warn($"Minimum is 3s (broker API rate limit). Using 3s.");
+                        liveInterval = 3;
+                    }
+                    await ClientConsolApp.Display.LiveDashboard.RunAsync(portfolio, currentBroker, liveInterval);
+                }
+                else
+                    AppLogger.Warn("Live Dashboard is only supported on Windows.");
+                break;
+
             default:
                 AppLogger.Warn("Unknown option. Please enter a number from the menu.");
                 break;
@@ -168,7 +191,8 @@ while (true)
         AppLogger.Error("Request timed out.");
     }
 
-    ConsoleRenderer.PressAnyKey();
+    if (!suppressPressAnyKey)
+        ConsoleRenderer.PressAnyKey();
 }
 
 Console.Clear();

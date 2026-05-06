@@ -1,12 +1,30 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
+    <!-- ── Output identity ─────────────────────────────────────────── -->
     <OutputType>Exe</OutputType>
     <TargetFramework>net8.0</TargetFramework>
     <Nullable>enable</Nullable>
     <ImplicitUsings>enable</ImplicitUsings>
     <RootNamespace>ClientConsolApp</RootNamespace>
-    <AssemblyName>ClientConsolApp</AssemblyName>
+    <AssemblyName>SujinsInvestment</AssemblyName>
+
+    <!-- ── Product metadata (shows in Windows file properties) ──────── -->
+    <Product>Sujin's Investment</Product>
+    <Title>Sujin's Investment</Title>
+    <Description>Portfolio management console — Upstox &amp; eToro</Description>
+    <Company>Sujin M</Company>
+    <Authors>Sujin M</Authors>
+    <Copyright>Copyright © 2026 Sujin M. All rights reserved.</Copyright>
+
+    <!-- ── Version ──────────────────────────────────────────────────── -->
+    <Version>1.0.0</Version>
+    <AssemblyVersion>1.0.0.0</AssemblyVersion>
+    <FileVersion>1.0.0.0</FileVersion>
+    <InformationalVersion>1.0.0</InformationalVersion>
+
+    <!-- ── Icon ─────────────────────────────────────────────────────── -->
+    <ApplicationIcon>Assets\app.ico</ApplicationIcon>
   </PropertyGroup>
 
   <ItemGroup>
@@ -24,6 +42,10 @@
     </None>
     <None Update="appsettings.Development.json">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+    </None>
+    <!-- Icon embedded into EXE -->
+    <None Update="Assets\app.ico">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>
 

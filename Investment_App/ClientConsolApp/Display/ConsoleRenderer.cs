@@ -49,6 +49,8 @@ public static class ConsoleRenderer
         Console.WriteLine("   7.  List Brokers");
         Console.WriteLine("   8.  Invalidate Cache");
         Console.WriteLine("   9.  Switch Broker");
+        WriteColored("  ── Live ─────────────────────────────────────", ConsoleColor.DarkGray);
+        WriteColored("   L.  Live Dashboard  (auto-refresh)", ConsoleColor.Yellow);
         Console.WriteLine("   0.  Exit");
         Console.WriteLine();
         WriteColored("  ───────────────────────────────────────────────", ConsoleColor.DarkGray);
