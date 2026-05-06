@@ -12,4 +12,4 @@ Write-Host "  http://127.0.0.1:8000      (API root)" -ForegroundColor Green
 Write-Host "  http://127.0.0.1:8000/docs (Swagger UI)" -ForegroundColor Green
 Write-Host ""
 
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000 --ws-ping-interval 60 --ws-ping-timeout 60

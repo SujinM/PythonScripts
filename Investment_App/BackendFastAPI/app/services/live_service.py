@@ -238,8 +238,11 @@ class EToroLiveService:
             try:
                 async with websockets.connect(
                         self._WS_URL,
-                        ping_interval=20,   # websockets sends WS pings to eToro
-                        ping_timeout=30,    # tolerate up to 30 s for a pong
+                        # Do NOT set ping_interval here: some WS servers close
+                        # the connection when they receive unexpected Ping frames
+                        # from the client.  We rely on our own 25-second
+                        # application-level keepalive ping instead.
+                        open_timeout=15,
                 ) as ws:
                     logger.info(
                         "eToro WS connected — authenticating (%d instruments)", len(unique_keys)
@@ -305,16 +308,10 @@ class EToroLiveService:
                             # No message from eToro — send keepalive downstream
                             yield {"broker": "etoro", "ping": True, "ts": time.time()}
                             continue
-                        except websockets.exceptions.ConnectionClosedOK:
-                            # eToro server closed the session cleanly after its
-                            # ~265 s session timeout.  Reconnect immediately
-                            # without an error frame or delay.
-                            logger.info(
-                                "eToro WS session closed by server — reconnecting immediately"
-                            )
-                            break  # fall through to outer while True → reconnect
-                        # Any unexpected close / network error propagates to the
-                        # outer except Exception which handles error + delay.
+                        # ConnectionClosed (both OK and Error) is NOT caught here;
+                        # let it propagate through the inner loop and out of the
+                        # async-with block so the outer except handlers below can
+                        # decide whether to reconnect immediately or wait.
 
                         ts = time.time()
                         msg = self._decode_frame(raw)
@@ -385,6 +382,20 @@ class EToroLiveService:
 
             except asyncio.CancelledError:
                 raise  # propagate cancellation to the caller
+            except (
+                websockets.exceptions.ConnectionClosedOK,
+                websockets.exceptions.ConnectionClosedError,
+            ) as exc:
+                # eToro server closed the session (clean timeout ~265 s, or
+                # unexpected close).  Reconnect immediately — no sleep, no
+                # error frame — just send a keepalive ping so the FastAPI ↔ C#
+                # downstream connection stays alive during the brief re-auth.
+                logger.info(
+                    "eToro WS closed (%s) — reconnecting immediately",
+                    type(exc).__name__,
+                )
+                yield {"broker": "etoro", "ping": True, "ts": time.time()}
+                # (outer while True loops immediately — no sleep)
             except Exception as exc:
                 ts = time.time()
                 logger.warning(

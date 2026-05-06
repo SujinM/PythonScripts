@@ -150,9 +150,24 @@ public static class LiveTickDashboard
                 _lastTick = frame.ReceivedAt;
                 _statusMsg = string.Empty;
 
-                // Full redraw on each tick
-                RedrawTable(broker);
-                PaintFooter(broker);
+                // Full redraw on each tick.
+                // Wrap in try/catch: any console geometry exception (e.g.
+                // ArgumentOutOfRangeException when the user resizes the window
+                // mid-draw) must NOT propagate out of the await-foreach body —
+                // that would dispose StreamAsync's enumerator and close the WS.
+                try
+                {
+                    RedrawTable(broker);
+                    PaintFooter(broker);
+                }
+                catch (ArgumentOutOfRangeException)
+                {
+                    // Terminal resized mid-draw — skip this frame; next tick redraws cleanly.
+                }
+                catch (Exception ex) when (ex is not OperationCanceledException)
+                {
+                    // Unexpected console error — swallow and continue streaming.
+                }
             }
         }
         catch (OperationCanceledException) { /* Q / Esc or outer token */ }
