@@ -5,43 +5,34 @@ Live price streaming services for Upstox and eToro.
 
 Architecture
 ────────────
-  Client ←── FastAPI WebSocket ─── LiveService ─── Broker REST API (1-3 s poll)
+  Client ←── FastAPI WebSocket ─── LiveService ─── Broker data source
 
 Upstox
-  Source  : GET /v2/market-quote/ltp?instrument_key=NSE_EQ|INE848E01016,...
-  Interval: UPSTOX_POLL_INTERVAL  (default 1 s)
+  Source  : GET /v2/market-quote/ltp (REST poll every 1 s)
   Keys    : Upstox instrument keys, e.g. "NSE_EQ|INE848E01016"
 
-  ── Native Upstox WebSocket alternative (not implemented here) ──────────────
-  Upstox also provides a binary Protobuf WebSocket feed:
-    1. GET /v2/feed/market-data-feed/authorize  →  authorizedRedirectUri
-    2. Connect via ``websockets`` to that URI with the Bearer token header
-    3. Subscribe:
-         {"guid": "...", "method": "sub",
-          "data": {"mode": "ltpc", "instrumentKeys": ["NSE_EQ|INE848E01016"]}}
-    4. Decode each binary frame with the Upstox Protobuf schema
-       (MarketDataFeed_pb2.FeedResponse — available in upstox-python-sdk on PyPI)
-  This REST-poll approach gives equivalent 1-second resolution without the
-  Protobuf/websockets dependency overhead.
-  ────────────────────────────────────────────────────────────────────────────
-
 eToro
-  Source  : GET /api/v1/market-data/instruments/rates?instrumentIds=100001,...
-  Interval: ETORO_POLL_INTERVAL  (default 3 s — respect rate limits)
+  Source  : wss://ws.etoro.com/ws  (native WebSocket — push on every price change)
   Keys    : str(instrumentId), e.g. "100001"
-
-  eToro has no WebSocket or streaming endpoint; the rates API is the only
-  real-time price source available via the Public API.
+  Protocol:
+    1. Connect to wss://ws.etoro.com/ws
+    2. Send Authenticate  {"operation": "Authenticate", "data": {"userKey": ..., "apiKey": ...}}
+    3. Receive            {"success": true, "operation": "Authenticate"}
+    4. Send Subscribe     {"operation": "Subscribe", "data": {"topics": ["instrument:100001", ...], "snapshot": true}}
+    5. Receive push msgs  {"messages": [{"topic": "instrument:100001", "content": "{\"Bid\":\"...\",\"Ask\":\"...\"}", "type": "Trading.Instrument.Rate"}]}
+    6. On disconnect → reconnect automatically
 """
 
 from __future__ import annotations
 
 import asyncio
+import json
 import time
 import uuid
 from typing import AsyncGenerator
 
 import httpx
+import websockets
 
 from app.core.config import get_settings
 from app.core.logger import get_logger
@@ -49,8 +40,6 @@ from app.core.logger import get_logger
 logger = get_logger(__name__)
 
 UPSTOX_POLL_INTERVAL: float = 1.0   # seconds between Upstox LTP polls
-ETORO_POLL_INTERVAL: float = 5.0    # seconds between eToro rate polls (respect rate limits)
-_ETORO_429_DEFAULT_BACKOFF: float = 10.0  # fallback wait when Retry-After header is absent
 
 
 # ── Upstox ────────────────────────────────────────────────────────────────────
@@ -147,118 +136,45 @@ class UpstoxLiveService:
 
 class EToroLiveService:
     """
-    Streams live bid/ask rates from eToro by polling
-    GET /api/v1/market-data/instruments/rates.
+    Streams live bid/ask rates from eToro using the **native WebSocket API**
+    at ``wss://ws.etoro.com/ws``.
 
-    eToro has no WebSocket feed; the rates endpoint is the only real-time
-    price source available via the Public API.
+    Unlike the previous REST-polling approach, the eToro server *pushes* a
+    new message on every price change — no polling interval, no 429 errors,
+    and sub-second latency.
 
-    instrument_keys are ``str(instrumentId)`` integers, e.g. ``["100001", "1001"]``.
-    Pass an empty list to stream all held instruments (keys are resolved
-    automatically by the WebSocket endpoint via broker holdings).
+    Protocol (per eToro API docs):
+      1. Connect  →  wss://ws.etoro.com/ws
+      2. Authenticate  →  ``{"operation": "Authenticate", "data": {"userKey": ..., "apiKey": ...}}``
+      3. Subscribe     →  ``{"operation": "Subscribe", "data": {"topics": ["instrument:100001", ...], "snapshot": true}}``
+      4. Receive push  →  ``{"messages": [{"topic": "instrument:100001", "content": "{...}", "type": "Trading.Instrument.Rate"}]}``
+         The ``content`` field is a JSON string with keys ``Bid``, ``Ask``, ``LastExecution``, ``Date``.
+      5. On disconnect → auto-reconnect with a short delay.
 
     Yielded message shape (success)::
 
         {
           "broker": "etoro",
           "ticks": {
-            "100001": {"bid": 1234.5, "ask": 1235.0, "ts": 1746567890.1},
+            "100001": {"name": "Ethereum", "bid": 1234.5, "ask": 1235.0, "ts": 1746567890.1},
             ...
           },
           "ts": 1746567890.1
         }
 
-    Yielded message shape (error)::
+    Yielded message shape (error / reconnect)::
 
         {"broker": "etoro", "error": "...", "ts": 1746567890.1}
     """
+
+    _WS_URL = "wss://ws.etoro.com/ws"
+    _RECONNECT_DELAY: float = 3.0   # seconds before reconnect attempt
+    _AUTH_TIMEOUT: float = 15.0     # seconds to wait for auth response
 
     def __init__(self) -> None:
         s = get_settings()
         self._api_key = s.etoro_api_key
         self._user_key = s.etoro_user_key
-        self._base_url = s.etoro_base_url
-
-    def _auth_headers(self) -> dict[str, str]:
-        """Build the three required eToro request headers (fresh UUID per call)."""
-        return {
-            "x-api-key": self._api_key,
-            "x-user-key": self._user_key,
-            "x-request-id": str(uuid.uuid4()),
-            "Accept": "application/json",
-        }
-
-    async def _fetch_rates(
-        self, client: httpx.AsyncClient, instrument_ids: list[str]
-    ) -> dict[str, dict]:
-        """
-        Call GET /api/v1/market-data/instruments/rates?instrumentIds=...
-
-        eToro returns 500 when any single ID in the batch is invalid (e.g.
-        virtual copy-trade instruments with unusual IDs).  When that happens
-        this method retries each ID individually and silently skips any that
-        still fail, mirroring the same fallback used in
-        ``etoro_app.services.portfolio_service._fetch_market_data``.
-
-        Returns a dict keyed by ``str(instrumentID)``.
-        """
-        url = f"{self._base_url}/api/v1/market-data/instruments/rates"
-
-        def _parse(body) -> dict[str, dict]:
-            raw_rates: list[dict] = (
-                body.get("rates", []) if isinstance(body, dict) else []
-            )
-            return {
-                str(r["instrumentID"]): r
-                for r in raw_rates
-                if "instrumentID" in r
-            }
-
-        # ── Batch attempt ─────────────────────────────────────────────────
-        try:
-            response = await client.get(
-                url,
-                headers=self._auth_headers(),
-                params={"instrumentIds": ",".join(instrument_ids)},
-                timeout=10,
-            )
-            if response.status_code != 500:
-                response.raise_for_status()
-                return _parse(response.json())
-            # 500 → fall through to per-ID fallback below
-            logger.warning(
-                "eToro rates batch returned 500 — retrying %d IDs individually",
-                len(instrument_ids),
-            )
-        except httpx.HTTPStatusError:
-            raise
-        except Exception:
-            raise
-
-        # ── Per-ID fallback ───────────────────────────────────────────────
-        result: dict[str, dict] = {}
-        for iid in instrument_ids:
-            try:
-                resp = await client.get(
-                    url,
-                    headers=self._auth_headers(),
-                    params={"instrumentIds": iid},
-                    timeout=10,
-                )
-                if resp.status_code == 500:
-                    logger.debug("eToro rates: skipping invalid instrumentId=%s (500)", iid)
-                    continue
-                resp.raise_for_status()
-                result.update(_parse(resp.json()))
-            except httpx.HTTPStatusError as exc:
-                logger.debug(
-                    "eToro rates: skipping instrumentId=%s (%s)", iid, exc
-                )
-            except Exception as exc:
-                logger.debug(
-                    "eToro rates: error for instrumentId=%s: %s", iid, exc
-                )
-        return result
 
     async def stream(
         self,
@@ -266,18 +182,16 @@ class EToroLiveService:
         name_map: dict[str, str] | None = None,
     ) -> AsyncGenerator[dict, None]:
         """
-        Infinite async generator that yields rate tick dicts every
-        ``ETORO_POLL_INTERVAL`` seconds until the caller stops iterating.
+        Infinite async generator that yields bid/ask tick dicts pushed by the
+        eToro WebSocket server on every price change.
 
         Args:
             instrument_keys: eToro instrumentId strings, e.g. ["100001", "1001"].
-            name_map: Optional mapping of instrumentId string → display name,
-                      e.g. {"100001": "Ethereum", "1001": "Apple"}.
-                      When provided each tick entry includes a ``"name"`` field.
+            name_map: Optional mapping of instrumentId string → display name.
+                      Each tick entry includes a ``"name"`` field; falls back
+                      to the numeric ID string when not provided.
         """
-        # Deduplicate while preserving order — eToro 500s when the same ID
-        # appears twice in a batch (e.g. a symbol held in both a direct and
-        # copy-trade position).
+        # Deduplicate while preserving order
         seen: set[str] = set()
         unique_keys: list[str] = []
         for k in instrument_keys:
@@ -285,38 +199,107 @@ class EToroLiveService:
                 seen.add(k)
                 unique_keys.append(k)
 
-        _names: dict[str, str] = name_map or {}
+        if not unique_keys:
+            yield {"broker": "etoro", "error": "No instrument keys provided", "ts": time.time()}
+            return
 
-        async with httpx.AsyncClient() as client:
-            while True:
-                ts = time.time()
-                try:
-                    raw = await self._fetch_rates(client, unique_keys)
-                    ticks = {
-                        iid: {
-                            "name": _names.get(iid, iid),
-                            "bid": info.get("bid"),
-                            "ask": info.get("ask"),
-                            "ts": ts,
+        _names: dict[str, str] = name_map or {}
+        topics = [f"instrument:{iid}" for iid in unique_keys]
+
+        while True:
+            ts = time.time()
+            try:
+                async with websockets.connect(self._WS_URL) as ws:
+                    logger.info(
+                        "eToro WS connected — authenticating (%d instruments)", len(unique_keys)
+                    )
+
+                    # ── Step 1: Authenticate ──────────────────────────────
+                    await ws.send(json.dumps({
+                        "id": str(uuid.uuid4()),
+                        "operation": "Authenticate",
+                        "data": {
+                            "userKey": self._user_key,
+                            "apiKey": self._api_key,
+                        },
+                    }))
+
+                    auth_raw = await asyncio.wait_for(ws.recv(), timeout=self._AUTH_TIMEOUT)
+                    auth_resp = json.loads(auth_raw)
+                    if not auth_resp.get("success", False):
+                        err = auth_resp.get("errorMessage") or auth_resp.get("errorCode", "unknown")
+                        logger.error("eToro WS authentication failed: %s", err)
+                        yield {
+                            "broker": "etoro",
+                            "error": f"Authentication failed: {err}",
+                            "ts": time.time(),
                         }
-                        for iid, info in raw.items()
-                    }
-                    yield {"broker": "etoro", "ticks": ticks, "ts": ts}
-                except httpx.HTTPStatusError as exc:
-                    status = exc.response.status_code
-                    if status == 429:
-                        retry_after = float(
-                            exc.response.headers.get("Retry-After", _ETORO_429_DEFAULT_BACKOFF)
-                        )
-                        logger.warning(
-                            "eToro rates 429 — pausing stream for %.0fs", retry_after
-                        )
-                        yield {"broker": "etoro", "error": f"Rate limited — retrying in {retry_after:.0f}s", "ts": ts}
-                        await asyncio.sleep(retry_after)
-                        continue  # skip the normal interval sleep below
-                    logger.warning("eToro rates HTTP %s error: %s", status, exc)
-                    yield {"broker": "etoro", "error": str(exc), "ts": ts}
-                except Exception as exc:
-                    logger.warning("eToro rates fetch error: %s", exc)
-                    yield {"broker": "etoro", "error": str(exc), "ts": ts}
-                await asyncio.sleep(ETORO_POLL_INTERVAL)
+                        await asyncio.sleep(self._RECONNECT_DELAY)
+                        continue
+
+                    logger.info(
+                        "eToro WS authenticated — subscribing to %d topic(s)", len(topics)
+                    )
+
+                    # ── Step 2: Subscribe (snapshot=True → get prices now) ─
+                    await ws.send(json.dumps({
+                        "id": str(uuid.uuid4()),
+                        "operation": "Subscribe",
+                        "data": {
+                            "topics": topics,
+                            "snapshot": True,
+                        },
+                    }))
+
+                    # ── Step 3: Process incoming push messages ─────────────
+                    async for raw in ws:
+                        ts = time.time()
+                        try:
+                            msg = json.loads(raw)
+                            messages: list[dict] = msg.get("messages", [])
+                            ticks: dict[str, dict] = {}
+
+                            for m in messages:
+                                topic: str = m.get("topic", "")
+                                if not topic.startswith("instrument:"):
+                                    continue  # e.g. subscription ack / private messages
+                                iid = topic.split(":", 1)[1]
+
+                                # content is a nested JSON string
+                                content_raw = m.get("content", "{}")
+                                content: dict = (
+                                    json.loads(content_raw)
+                                    if isinstance(content_raw, str)
+                                    else content_raw
+                                )
+
+                                bid = float(content["Bid"]) if "Bid" in content else None
+                                ask = float(content["Ask"]) if "Ask" in content else None
+
+                                ticks[iid] = {
+                                    "name": _names.get(iid, iid),
+                                    "bid": bid,
+                                    "ask": ask,
+                                    "ts": ts,
+                                }
+
+                            if ticks:
+                                yield {"broker": "etoro", "ticks": ticks, "ts": ts}
+
+                        except Exception as exc:
+                            logger.warning("eToro WS message parse error: %s", exc)
+
+            except asyncio.CancelledError:
+                raise  # propagate cancellation to the caller
+            except Exception as exc:
+                ts = time.time()
+                logger.warning(
+                    "eToro WS error: %s — reconnecting in %.0fs", exc, self._RECONNECT_DELAY
+                )
+                yield {
+                    "broker": "etoro",
+                    "error": f"Disconnected — reconnecting in {self._RECONNECT_DELAY:.0f}s",
+                    "ts": ts,
+                }
+                await asyncio.sleep(self._RECONNECT_DELAY)
+

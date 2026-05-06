@@ -80,13 +80,15 @@ BackendFastAPI/
 │   │   └── etoro.py               # EToroAdapter   (delegates to etoro_app)
 │   ├── services/
 │   │   ├── portfolio_service.py   # Orchestrates broker calls + cache
-│   │   └── analysis_service.py    # Pure analysis: alerts, P&L, allocation
+│   │   ├── analysis_service.py    # Pure analysis: alerts, P&L, allocation
+│   │   └── live_service.py        # Live price streaming (Upstox REST poll / eToro WebSocket)
 │   └── api/
 │       ├── deps.py                # FastAPI Depends() providers
 │       └── v1/
 │           ├── router.py          # Aggregate v1 router
 │           ├── portfolio.py       # /holdings /positions /trades /summary
-│           └── analysis.py        # /analysis /alerts /brokers
+│           ├── analysis.py        # /analysis /alerts /brokers
+│           └── live.py            # WS /api/v1/{broker}/ws/live
 ├── tests/
 │   ├── conftest.py                # Fixtures + MockBrokerAdapter
 │   ├── test_portfolio_service.py
@@ -138,7 +140,7 @@ cp .env.example .env
 | `UPSTOX_REDIRECT_URI` | `https://127.0.0.1` | OAuth2 redirect URI |
 | `ETORO_API_KEY` | _(empty)_ | eToro Public API Key (`x-api-key` header) |
 | `ETORO_USER_KEY` | _(empty)_ | eToro User Key (`x-user-key` header) |
-| `ETORO_BASE_URL` | `https://public-api.etoro.com` | eToro API base URL |
+| `ETORO_BASE_URL` | `https://public-api.etoro.com` | eToro REST API base URL (portfolio/holdings) |
 | `REDIS_URL` | _(empty)_ | Optional Redis URL (in-memory used if blank) |
 
 ---
@@ -182,6 +184,26 @@ Interactive API docs: http://127.0.0.1:8000/docs
 |---|---|---|
 | `GET` | `/api/v1/{broker}/analysis` | Full analysis: P&L, alerts, sector allocation |
 | `GET` | `/api/v1/{broker}/analysis/alerts` | Active alerts (loss/gain thresholds) |
+
+### Live Prices (WebSocket)
+| Method | Endpoint | Description |
+|---|---|---|
+| `WS` | `/api/v1/{broker}/ws/live` | Real-time price stream (auto-resolves holdings) |
+| `WS` | `/api/v1/{broker}/ws/live?instruments=KEY1,KEY2` | Stream specific instruments |
+
+eToro uses the **native eToro WebSocket** (`wss://ws.etoro.com/ws`) — prices are **pushed on every tick** (sub-second latency, no polling, no 429 errors).
+Upstox uses REST polling every 1 second (`GET /v2/market-quote/ltp`).
+
+Example tick message (eToro):
+```json
+{
+  "broker": "etoro",
+  "ticks": {
+    "100001": {"name": "Ethereum", "bid": 1234.5, "ask": 1235.0, "ts": 1746567890.1}
+  },
+  "ts": 1746567890.1
+}
+```
 
 **Supported broker IDs:** `upstox`, `etoro`
 

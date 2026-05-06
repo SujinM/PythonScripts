@@ -5,8 +5,7 @@ WebSocket endpoint for live price streaming.
 
   WS  /api/v1/{broker}/ws/live?instruments=KEY1,KEY2,...
 
-The client connects and immediately starts receiving JSON price-tick messages
-pushed by the server at the broker's poll interval.
+The client connects and immediately starts receiving JSON price-tick messages.
 
 If the ``instruments`` query parameter is omitted the server auto-resolves
 the broker's current holdings and streams those instrument keys.
@@ -15,7 +14,8 @@ Supported brokers
 ─────────────────
   upstox  — polls GET /v2/market-quote/ltp every 1 s
               → ticks keyed by instrument_key ("NSE_EQ|INE848E01016")
-  etoro   — polls GET /api/v1/market-data/instruments/rates every 3 s
+  etoro   — connects to wss://ws.etoro.com/ws (native WebSocket)
+              server PUSHES on every price change (sub-second latency, no polling)
               → ticks keyed by str(instrumentId) ("100001")
 
 Example connections
@@ -39,17 +39,17 @@ Pushed message format
       "ts": 1746567890.1
     }
 
-  eToro success:
+  eToro success (pushed on every price change — sub-second):
     {
       "broker": "etoro",
       "ticks": {
-        "100001": {"bid": 1234.5, "ask": 1235.0, "ts": 1746567890.1}
+        "100001": {"name": "Ethereum", "bid": 1234.5, "ask": 1235.0, "ts": 1746567890.1}
       },
       "ts": 1746567890.1
     }
 
-  Error frame:
-    {"broker": "upstox", "error": "...", "ts": 1746567890.1}
+  Error / reconnect frame:
+    {"broker": "etoro", "error": "Disconnected — reconnecting in 3s", "ts": 1746567890.1}
 
 WebSocket close codes
 ─────────────────────
