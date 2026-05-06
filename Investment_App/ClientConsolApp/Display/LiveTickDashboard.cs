@@ -127,9 +127,25 @@ public static class LiveTickDashboard
 
                 if (!frame.HasTicks) continue;
 
-                // Merge new ticks into _latest
-                foreach (var (key, entry) in frame.Ticks!)
-                    _latest[key] = entry;
+                // Merge new ticks into _latest — only overwrite non-null fields so
+                // that a partial update (e.g. eToro sending only Bid, or an
+                // update with no price) never erases a previously known value.
+                foreach (var (key, newEntry) in frame.Ticks!)
+                {
+                    if (_latest.TryGetValue(key, out var existing))
+                    {
+                        if (newEntry.Name   is not null) existing.Name  = newEntry.Name;
+                        if (newEntry.Bid.HasValue)       existing.Bid   = newEntry.Bid;
+                        if (newEntry.Ask.HasValue)       existing.Ask   = newEntry.Ask;
+                        if (newEntry.Ltp.HasValue)       existing.Ltp   = newEntry.Ltp;
+                        if (newEntry.Close.HasValue)     existing.Close = newEntry.Close;
+                        existing.Ts = newEntry.Ts;
+                    }
+                    else
+                    {
+                        _latest[key] = newEntry;
+                    }
+                }
 
                 _frameCount++;
                 _lastTick = frame.ReceivedAt;
@@ -191,13 +207,18 @@ public static class LiveTickDashboard
 
     private static void RedrawTable(string broker)
     {
+        // Snapshot the window width ONCE so every calculation in this
+        // method uses a consistent value even if the terminal is resized
+        // mid-draw, which would cause misaligned rows.
+        int w = Math.Max(80, Console.WindowWidth);
+
         DrawHeader(broker);
         DrawTableHeader(broker);
 
-        // Pre-clear the entire table body area so old rows / a previously
-        // lower footer line never bleed through between redraws.
+        // Pre-clear the entire table body area so rows that were drawn in a
+        // previous frame but are no longer needed never bleed through.
         int maxBodyRow = Math.Min(4 + _latest.Count + 6, Console.WindowHeight - 2);
-        string blankLine = new string(' ', Math.Max(0, Console.WindowWidth - 1));
+        string blankLine = new string(' ', w - 1);
         for (int r = 4; r <= maxBodyRow; r++)
         {
             Console.SetCursorPosition(0, r);
@@ -262,8 +283,15 @@ public static class LiveTickDashboard
                 WriteField(FormatPrice(entry.Ask, "$").PadLeft(ColPrice), priceFg);
                 Console.Write(" ");
 
-                double spread = (entry.Ask ?? 0) - (entry.Bid ?? 0);
-                WriteField(("$" + spread.ToString("F4")).PadLeft(ColChg), spread == 0 ? Label : ValueFg);
+                // Only compute spread when both sides are known; a one-sided
+                // quote would produce a negative value which is misleading.
+                double? spread = entry.Bid.HasValue && entry.Ask.HasValue
+                    ? entry.Ask.Value - entry.Bid.Value
+                    : (double?)null;
+                string spreadStr = spread.HasValue
+                    ? ("$" + spread.Value.ToString("F4")).PadLeft(ColChg)
+                    : FormatPrice(null).PadLeft(ColChg);   // "─"
+                WriteField(spreadStr, spread is null || spread == 0 ? Label : ValueFg);
             }
             else
             {
@@ -282,13 +310,13 @@ public static class LiveTickDashboard
                 WriteField((sign + (pct.HasValue ? pct.Value.ToString("F2") : "\u2500") + "%").PadLeft(ColPct + 1), chgFg);
             }
 
-            // The row was already blanked in the pre-clear pass above, so
-            // we only need to make sure the cursor hasn't wrapped past the
-            // window edge (which would push subsequent rows down by 1).
-            // Clamp to the last safe column so no accidental line-wrap occurs.
-            int safeLeft = Math.Min(Console.CursorLeft, Console.WindowWidth - 1);
-            if (Console.CursorLeft != safeLeft)
-                Console.SetCursorPosition(safeLeft, Console.CursorTop);
+            // Pad the rest of the row so the cursor always ends at exactly
+            // column w-1 — this prevents any residual character from a wider
+            // previous value showing at the end of the line, and ensures the
+            // next SetCursorPosition starts from a clean column 0.
+            int rowPad = w - 1 - Console.CursorLeft;
+            if (rowPad > 0)  Console.Write(new string(' ', rowPad));
+            else if (rowPad < 0) Console.SetCursorPosition(w - 1, Console.CursorTop);
         }
 
         _footerRow = row + 1;
