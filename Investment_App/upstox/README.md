@@ -298,6 +298,34 @@ pytest -v --tb=short
 
 ## Extending the Application
 
+### Regenerating the `upstox_app` installable package
+
+The `upstox_app/` directory is a **generated copy** of `app/` with all internal
+imports rewritten from `from app.` → `from upstox_app.`.
+It exists so that other projects (e.g. `BackendFastAPI`) can install and import
+this library without conflicting with their own `app/` package.
+
+```bash
+# Run from the upstox/ project root
+python create_upstox_app.py
+```
+
+**What it does:**
+1. Removes the existing `upstox_app/` directory
+2. Copies the entire `app/` tree into `upstox_app/`
+3. Rewrites every `from app.` → `from upstox_app.` and `import app.` → `import upstox_app.` in the copied files
+
+**When to run it:**
+- After adding or renaming any module inside `app/`
+- After changing any internal import paths
+- Before publishing or installing the package into another project
+
+**Installing the generated package (editable mode):**
+```bash
+# From BackendFastAPI or any other project that consumes upstox_app
+pip install -e ../upstox
+```
+
 ### Add a new broker (e.g. Zerodha Kite)
 
 1. Create `app/api/kite_client.py` implementing the same `get()` / `post()` interface

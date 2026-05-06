@@ -1,0 +1,16 @@
+# Build outputs
+bin/
+obj/
+
+# User-specific settings
+*.user
+*.suo
+.vs/
+
+# Secrets — never commit these
+appsettings.Local.json
+.env
+
+# OS
+.DS_Store
+Thumbs.db
