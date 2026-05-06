@@ -194,6 +194,16 @@ public static class LiveTickDashboard
         DrawHeader(broker);
         DrawTableHeader(broker);
 
+        // Pre-clear the entire table body area so old rows / a previously
+        // lower footer line never bleed through between redraws.
+        int maxBodyRow = Math.Min(4 + _latest.Count + 6, Console.WindowHeight - 2);
+        string blankLine = new string(' ', Math.Max(0, Console.WindowWidth - 1));
+        for (int r = 4; r <= maxBodyRow; r++)
+        {
+            Console.SetCursorPosition(0, r);
+            Console.Write(blankLine);
+        }
+
         int row = 4;
         foreach (var (key, entry) in _latest.OrderBy(k => k.Key))
         {
@@ -272,9 +282,13 @@ public static class LiveTickDashboard
                 WriteField((sign + (pct.HasValue ? pct.Value.ToString("F2") : "\u2500") + "%").PadLeft(ColPct + 1), chgFg);
             }
 
-            // Clear to end of line
-            int remaining = Console.WindowWidth - Console.CursorLeft - 1;
-            if (remaining > 0) Console.Write(new string(' ', remaining));
+            // The row was already blanked in the pre-clear pass above, so
+            // we only need to make sure the cursor hasn't wrapped past the
+            // window edge (which would push subsequent rows down by 1).
+            // Clamp to the last safe column so no accidental line-wrap occurs.
+            int safeLeft = Math.Min(Console.CursorLeft, Console.WindowWidth - 1);
+            if (Console.CursorLeft != safeLeft)
+                Console.SetCursorPosition(safeLeft, Console.CursorTop);
         }
 
         _footerRow = row + 1;
