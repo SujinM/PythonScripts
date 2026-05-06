@@ -40,12 +40,10 @@ public static class LiveTickDashboard
 
     // ── Column widths ─────────────────────────────────────────────────────
     private const int ColSymbol    = 20;   // Upstox symbol column
-    private const int ColEtoroName = 28;   // eToro display name column (wider now — no ID)
-    private const int ColPrice     = 13;
+    private const int ColEtoroName = 32;   // eToro display name column
+    private const int ColPrice     = 14;
     private const int ColChg       = 11;
     private const int ColPct       = 10;
-    private const int ColChangePct = 9;    // eToro session change %
-    private const int ColVolume    = 12;   // eToro volume (shown when available)
 
     // ── State ─────────────────────────────────────────────────────────────
 
@@ -188,9 +186,7 @@ public static class LiveTickDashboard
             var hdr = "  " + "Name".PadRight(ColEtoroName) + " " +
                       "Bid".PadLeft(ColPrice) + " " +
                       "Ask".PadLeft(ColPrice) + " " +
-                      "Spread".PadLeft(ColChg) + " " +
-                      "Chg%".PadLeft(ColChangePct) + " " +
-                      "Volume".PadLeft(ColVolume);
+                      "Spread".PadLeft(ColChg);
             WriteLn(hdr.PadRight(Console.WindowWidth - 1), Label);
         }
         else
@@ -281,35 +277,13 @@ public static class LiveTickDashboard
                 WriteField(FormatPrice(entry.Ask, "$").PadLeft(ColPrice), priceFg);
                 Console.Write(" ");
 
-                // Spread
                 double? spread = entry.Bid.HasValue && entry.Ask.HasValue
                     ? entry.Ask.Value - entry.Bid.Value
                     : (double?)null;
                 string spreadStr = spread.HasValue
                     ? ("$" + spread.Value.ToString("F4")).PadLeft(ColChg)
-                    : FormatPrice(null).PadLeft(ColChg);   // "─"
+                    : FormatPrice(null).PadLeft(ColChg);
                 WriteField(spreadStr, spread is null || spread == 0 ? Label : ValueFg);
-
-                // Session change %
-                Console.Write(" ");
-                if (entry.ServerChangePct.HasValue)
-                {
-                    double pct  = entry.ServerChangePct.Value;
-                    var pctFg   = pct >= 0 ? GainFg : LossFg;
-                    string sign = pct > 0 ? "+" : "";
-                    WriteField((sign + pct.ToString("F2") + "%").PadLeft(ColChangePct), pctFg);
-                }
-                else
-                {
-                    WriteField("\u2500".PadLeft(ColChangePct), Label);
-                }
-
-                // Volume (shown as 1.23M / 456.78K / 123 when available)
-                Console.Write(" ");
-                string volStr = entry.Volume.HasValue
-                    ? FormatVolume(entry.Volume.Value).PadLeft(ColVolume)
-                    : "\u2500".PadLeft(ColVolume);
-                WriteField(volStr, entry.Volume.HasValue ? ValueFg : Label);
             }
             else
             {
@@ -371,11 +345,7 @@ public static class LiveTickDashboard
 
     private static string FormatPrice(double? price, string prefix = "")
         => price.HasValue ? prefix + price.Value.ToString("N2") : "─";
-    /// <summary>Format volume as 1.23M / 456.78K / 123.</summary>
-    private static string FormatVolume(double vol)
-        => vol >= 1_000_000 ? (vol / 1_000_000).ToString("F2") + "M"
-         : vol >= 1_000     ? (vol / 1_000).ToString("F2") + "K"
-         : vol.ToString("F0");
+
     private static void WriteField(string text, ConsoleColor fg)
     {
         var saved = Console.ForegroundColor;

@@ -74,6 +74,9 @@ public class LiveTickService
         {
             using var ws = new ClientWebSocket();
             ws.Options.SetRequestHeader("User-Agent", "SujinsInvestment/1.0");
+            // Send a WebSocket ping to FastAPI every 30 s so the server never
+            // sees an idle connection and closes it (uvicorn idle-timeout).
+            ws.Options.KeepAliveInterval = TimeSpan.FromSeconds(30);
 
             // Connect — failure logs a warning and triggers reconnect delay
             bool connected = await TryConnectAsync(ws, uri, ct);
