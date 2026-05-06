@@ -31,6 +31,21 @@ public class LiveTickEntry
     [JsonPropertyName("ask")]
     public double? Ask { get; set; }
 
+    /// <summary>Last execution / trade price (eToro).</summary>
+    [JsonPropertyName("last_exec")]
+    public double? LastExec { get; set; }
+
+    /// <summary>
+    /// Session change % computed by the server: (current_mid - session_start_mid) / session_start_mid * 100.
+    /// Positive = risen since session start; negative = fallen.
+    /// </summary>
+    [JsonPropertyName("change_pct")]
+    public double? ServerChangePct { get; set; }
+
+    /// <summary>Trading volume (eToro, when pushed by the server).</summary>
+    [JsonPropertyName("volume")]
+    public double? Volume { get; set; }
+
     /// <summary>Server timestamp (Unix epoch seconds).</summary>
     [JsonPropertyName("ts")]
     public double Ts { get; set; }

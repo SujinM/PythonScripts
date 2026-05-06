@@ -176,6 +176,9 @@ class EToroLiveService:
         s = get_settings()
         self._api_key = s.etoro_api_key
         self._user_key = s.etoro_user_key
+        # First mid-price seen per instrument — used as session-start reference
+        # for computing the running % change displayed in the dashboard.
+        self._ref_mid: dict[str, float] = {}
 
     @staticmethod
     def _decode_frame(raw) -> dict | None:
@@ -338,10 +341,39 @@ class EToroLiveService:
                                 bid = float(content["Bid"]) if "Bid" in content else None
                                 ask = float(content["Ask"]) if "Ask" in content else None
 
+                                # Extra fields pushed by eToro (present in some updates)
+                                last_exec = (
+                                    float(content["LastExecution"])
+                                    if "LastExecution" in content else None
+                                )
+                                volume = (
+                                    float(content["Volume"])
+                                    if "Volume" in content else None
+                                )
+
+                                # Session change %: (current_mid - first_mid) / first_mid * 100.
+                                # If eToro pushes a pre-computed daily change field, prefer it.
+                                mid = (
+                                    (bid + ask) / 2.0
+                                    if bid is not None and ask is not None
+                                    else bid or ask
+                                )
+                                if mid is not None and iid not in self._ref_mid:
+                                    self._ref_mid[iid] = mid
+                                ref = self._ref_mid.get(iid)
+                                change_pct: float | None = (
+                                    round((mid - ref) / ref * 100, 4)
+                                    if mid is not None and ref and ref != 0
+                                    else None
+                                )
+
                                 ticks[iid] = {
                                     "name": _names.get(iid, iid),
                                     "bid": bid,
                                     "ask": ask,
+                                    "last_exec": last_exec,
+                                    "change_pct": change_pct,
+                                    "volume": volume,
                                     "ts": ts,
                                 }
 
