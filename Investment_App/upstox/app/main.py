@@ -23,7 +23,9 @@ Usage
   python -m app analytics ltp "NSE_EQ|INE009A01021"
 """
 
+import re
 import sys
+from pathlib import Path
 from typing import Optional
 
 import typer
@@ -111,7 +113,20 @@ def _handle_api_error(exc: UpstoxAPIError) -> None:
     raise typer.Exit(1)
 
 
-# ---------------------------------------------------------------------------
+def _update_env_file(env_path: Path, token: str) -> bool:
+    """Replace or append UPSTOX_ACCESS_TOKEN in a .env file. Returns True if file exists."""
+    if not env_path.exists():
+        return False
+    content = env_path.read_text(encoding="utf-8")
+    new_line = f"UPSTOX_ACCESS_TOKEN={token}"
+    if re.search(r"^UPSTOX_ACCESS_TOKEN=.*", content, re.MULTILINE):
+        content = re.sub(r"^UPSTOX_ACCESS_TOKEN=.*", new_line, content, flags=re.MULTILINE)
+    else:
+        content = content.rstrip("\n") + f"\n{new_line}\n"
+    env_path.write_text(content, encoding="utf-8")
+    return True
+
+
 # Commands
 # ---------------------------------------------------------------------------
 
@@ -142,15 +157,23 @@ def auth() -> None:
         _handle_api_error(exc)
         return  # unreachable — _handle_api_error exits
 
-    console.print(
-        "\n[bold green]Authentication successful![/bold green]\n"
-        "Add the following line to your [cyan].env[/cyan] file:\n"
-    )
-    # Display instruction only — do NOT log the token
-    console.print(f"  UPSTOX_ACCESS_TOKEN=<your-token-here>\n")
-    console.print("[dim](The token has been printed to stdout above — copy it now.)[/dim]")
-    # Print actual token last so the user can copy it easily
-    print(f"\nUPSTOX_ACCESS_TOKEN={token}\n")
+    console.print("\n[bold green]Authentication successful![/bold green]\n")
+
+    # Auto-update both .env files
+    _project_root = Path(__file__).resolve().parent.parent
+    _env_files = [
+        _project_root / ".env",
+        _project_root.parent / "BackendFastAPI" / ".env",
+    ]
+    for env_path in _env_files:
+        if _update_env_file(env_path, token):
+            console.print(f"[green]✓[/green] Updated UPSTOX_ACCESS_TOKEN in [cyan]{env_path}[/cyan]")
+        else:
+            console.print(f"[yellow]⚠[/yellow] {env_path} not found — skipped")
+
+    # Also print the token so the user can copy it if needed
+    console.print("\n[dim]Token (for reference):[/dim]")
+    print(f"UPSTOX_ACCESS_TOKEN={token}")
 
 
 @app.command()
