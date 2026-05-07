@@ -35,6 +35,9 @@ etoro/
 │   ├── test_portfolio_service.py
 │   └── test_analysis_service.py
 ├── create_etoro_app.py           # Script to regenerate etoro_app/ from app/
+├── download_instruments.py       # Download all eToro instruments → instruments.db
+├── query_instruments.py          # Query / search instruments.db from the CLI
+├── instruments.db                # SQLite database (git-ignored — run download_instruments.py)
 ├── .env.example                  # Safe template — commit this
 ├── .env                          # Your secrets — NEVER commit
 ├── .gitignore
@@ -208,6 +211,109 @@ Total open positions: 4
 
 ────────────────────────── Top Losers ──────────────────────────
   Bitcoin               -10.00%  -$200.00
+```
+
+---
+
+## Instruments Database
+
+Two standalone scripts let you download and query the full eToro instruments catalogue
+(15,000+ instruments) from the public metadata endpoint — no API key required.
+
+### Step 1 — Download instruments
+
+Fetches all instruments and stores them in a local SQLite database (`instruments.db`).
+
+```bash
+# Default — creates instruments.db next to the script
+python download_instruments.py
+
+# Custom database path
+python download_instruments.py --db C:\data\etoro.db
+```
+
+Expected output:
+```
+Fetching instruments from:
+  https://api.etorostatic.com/sapi/instrumentsmetadata/V1.1/instruments
+
+Received 15,497 instruments from API.
+
+Opening database: instruments.db
+─────────────────────────────────────────────
+  Instruments processed :   15,497
+  Total rows in DB      :   15,497
+  Database file         : instruments.db
+─────────────────────────────────────────────
+Done.
+```
+
+> Re-running the script refreshes existing rows — no duplicates are created.
+
+---
+
+### Step 2 — Query instruments
+
+```bash
+# Default: summary breakdown + first 20 rows
+python query_instruments.py
+
+# Search by display name or symbol (case-insensitive)
+python query_instruments.py --search Apple
+python query_instruments.py --search TSLA
+python query_instruments.py --search Bitcoin
+
+# Filter by InstrumentTypeID
+python query_instruments.py --type 5          # Stocks (12,407 instruments)
+python query_instruments.py --type 10         # Crypto
+python query_instruments.py --type 1          # Currencies
+python query_instruments.py --type 2          # Commodities
+python query_instruments.py --type 4          # ETFs
+
+# Filter by ExchangeID
+python query_instruments.py --exchange 4
+
+# Change the number of rows displayed (default: 20)
+python query_instruments.py --limit 100
+python query_instruments.py --type 5 --limit 50
+
+# List all InstrumentTypeIDs with counts
+python query_instruments.py --types
+
+# List all ExchangeIDs with counts
+python query_instruments.py --exchanges
+
+# Run any custom SQL SELECT query
+python query_instruments.py --sql "SELECT * FROM instruments WHERE SymbolFull = 'AAPL'"
+python query_instruments.py --sql "SELECT * FROM instruments WHERE DisplayName LIKE '%Tesla%'"
+python query_instruments.py --sql "SELECT COUNT(*) FROM instruments WHERE InstrumentTypeID = 5"
+
+# Use a non-default database file
+python query_instruments.py --db C:\data\etoro.db --search Gold
+```
+
+### Instrument type reference
+
+| `InstrumentTypeID` | Type |
+|---|---|
+| 1 | Currencies |
+| 2 | Commodities |
+| 3 | Indices |
+| 4 | ETFs |
+| 5 | Stocks |
+| 10 | Crypto |
+
+### Database schema
+
+```sql
+CREATE TABLE instruments (
+    InstrumentID       INTEGER PRIMARY KEY,
+    SymbolFull         TEXT,    -- e.g. "AAPL"
+    InternalSymbolFull TEXT,    -- e.g. "AAPL.US"
+    DisplayName        TEXT,    -- e.g. "Apple"
+    ExchangeID         INTEGER,
+    InstrumentTypeID   INTEGER
+);
 ```
 
 ---
