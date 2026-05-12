@@ -47,6 +47,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   const activeAnalysis  = computed(() => analyses.value[activeBroker.value]  ?? null)
   const activeAlerts    = computed(() => alerts.value[activeBroker.value]    ?? [])
   const activeLiveTicks = computed(() => liveTicks.value[activeBroker.value] ?? {})
+  const activeCurrency  = computed(() => activeBroker.value === 'etoro' ? 'USD' : 'INR')
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -204,6 +205,7 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     activeAnalysis,
     activeAlerts,
     activeLiveTicks,
+    activeCurrency,
     // actions
     fetchBrokers,
     selectBroker,

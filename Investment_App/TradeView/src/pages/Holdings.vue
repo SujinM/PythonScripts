@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, watch } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
@@ -7,11 +7,21 @@ import SearchBar from '@/components/common/SearchBar.vue'
 import Badge from '@/components/common/Badge.vue'
 
 const portfolio = usePortfolioStore()
+const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
+const fmt = (v: number) => formatCurrency(v, currency.value)
 
 const searchQuery = ref('')
 const activeTab   = ref<'holdings' | 'positions' | 'trades'>('holdings')
 
 onMounted(async () => {
+  await Promise.all([
+    portfolio.fetchHoldings(),
+    portfolio.fetchPositions(),
+    portfolio.fetchTrades(),
+  ])
+})
+
+watch(() => portfolio.activeBroker, async () => {
   await Promise.all([
     portfolio.fetchHoldings(),
     portfolio.fetchPositions(),
@@ -160,25 +170,25 @@ function pnlClass(value: number): string {
               </div>
             </td>
             <td class="px-4 py-3">
-              <Badge :label="h.exchange" variant="neutral" size="sm" />
+              <Badge :value="h.exchange" />
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
               {{ h.quantity }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
-              {{ formatCurrency(h.average_price) }}
+              {{ fmt(h.average_price) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs font-semibold" style="color: var(--text-primary);">
-              {{ formatCurrency(h.last_price) }}
+              {{ fmt(h.last_price) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
-              {{ formatCurrency(h.invested_value) }}
+              {{ fmt(h.invested_value) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
-              {{ formatCurrency(h.current_value) }}
+              {{ fmt(h.current_value) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs font-semibold" :class="pnlClass(h.unrealised_pnl)">
-              {{ formatCurrency(h.unrealised_pnl) }}
+              {{ fmt(h.unrealised_pnl) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs" :class="pnlClass(h.return_pct)">
               {{ formatPercent(h.return_pct) }}
@@ -222,11 +232,11 @@ function pnlClass(value: number): string {
             </td>
             <td class="px-4 py-3 text-xs" style="color: var(--text-secondary);">{{ p.product }}</td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ p.quantity }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(p.buy_price) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ formatCurrency(p.last_price) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs" :class="pnlClass(p.realised_pnl)">{{ formatCurrency(p.realised_pnl) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs" :class="pnlClass(p.unrealised_pnl)">{{ formatCurrency(p.unrealised_pnl) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" :class="pnlClass(p.total_pnl)">{{ formatCurrency(p.total_pnl) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ fmt(p.buy_price) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ fmt(p.last_price) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs" :class="pnlClass(p.realised_pnl)">{{ fmt(p.realised_pnl) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs" :class="pnlClass(p.unrealised_pnl)">{{ fmt(p.unrealised_pnl) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" :class="pnlClass(p.total_pnl)">{{ fmt(p.total_pnl) }}</td>
           </tr>
           <tr v-if="filteredPositions.length === 0">
             <td colspan="8" class="px-4 py-10 text-center text-sm" style="color: var(--text-muted);">
@@ -273,8 +283,8 @@ function pnlClass(value: number): string {
             </td>
             <td class="px-4 py-3 text-xs" style="color: var(--text-secondary);">{{ t.product }}</td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ t.quantity }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(t.price) }}</td>
-            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ formatCurrency(t.trade_value) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ fmt(t.price) }}</td>
+            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ fmt(t.trade_value) }}</td>
             <td class="px-4 py-3 text-xs" style="color: var(--text-muted);">
               {{ t.trade_date ? new Date(t.trade_date).toLocaleString() : '—' }}
             </td>

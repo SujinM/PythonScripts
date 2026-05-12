@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
 import { CHART_COLORS } from '@/utils/constants'
@@ -10,9 +10,18 @@ import BarChart from '@/components/charts/BarChart.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const portfolio = usePortfolioStore()
+const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
+const fmt = (v: number) => formatCurrency(v, currency.value)
 
 onMounted(async () => {
   await portfolio.fetchBrokers()
+  await Promise.all([
+    portfolio.fetchSummary(),
+    portfolio.fetchHoldings(),
+  ])
+})
+
+watch(() => portfolio.activeBroker, async () => {
   await Promise.all([
     portfolio.fetchSummary(),
     portfolio.fetchHoldings(),
@@ -74,7 +83,7 @@ const exchangePieData = computed(() => {
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatisticCard
         label="Total Invested"
-        :value="summary ? formatCurrency(summary.total_invested) : '—'"
+        :value="summary ? fmt(summary.total_invested) : '—'"
         icon="instruments"
         subValue="across all holdings"
         accent="#3b82f6"
@@ -82,7 +91,7 @@ const exchangePieData = computed(() => {
       />
       <StatisticCard
         label="Current Value"
-        :value="summary ? formatCurrency(summary.total_current_value) : '—'"
+        :value="summary ? fmt(summary.total_current_value) : '—'"
         icon="exchanges"
         subValue="mark-to-market"
         accent="#8b5cf6"
@@ -90,7 +99,7 @@ const exchangePieData = computed(() => {
       />
       <StatisticCard
         label="Unrealised P&L"
-        :value="summary ? formatCurrency(summary.total_unrealised_pnl) : '—'"
+        :value="summary ? fmt(summary.total_unrealised_pnl) : '—'"
         icon="tradable"
         :trend="summary && summary.total_unrealised_pnl >= 0 ? 'up' : 'down'"
         :trendValue="summary ? formatPercent(summary.overall_return_pct) : ''"
@@ -148,7 +157,7 @@ const exchangePieData = computed(() => {
           <tbody class="divide-y" style="border-color: var(--surface-border);">
             <tr v-for="h in (summary?.top_gainers ?? [])" :key="h.instrument_key" class="hover:bg-white/5 transition-colors">
               <td class="px-4 py-3 font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ h.trading_symbol }}</td>
-              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(h.current_value) }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ fmt(h.current_value) }}</td>
               <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-emerald-400">{{ formatPercent(h.return_pct) }}</td>
             </tr>
             <tr v-if="!(summary?.top_gainers?.length)">
@@ -167,7 +176,7 @@ const exchangePieData = computed(() => {
           <tbody class="divide-y" style="border-color: var(--surface-border);">
             <tr v-for="h in (summary?.top_losers ?? [])" :key="h.instrument_key" class="hover:bg-white/5 transition-colors">
               <td class="px-4 py-3 font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ h.trading_symbol }}</td>
-              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(h.current_value) }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ fmt(h.current_value) }}</td>
               <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-red-400">{{ formatPercent(h.return_pct) }}</td>
             </tr>
             <tr v-if="!(summary?.top_losers?.length)">

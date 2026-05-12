@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, computed } from 'vue'
+import { onMounted, computed, watch } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { CHART_COLORS } from '@/utils/constants'
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
@@ -8,8 +8,15 @@ import BarChart from '@/components/charts/BarChart.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 
 const portfolio = usePortfolioStore()
+const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
+const fmt = (v: number) => formatCurrency(v, currency.value)
 
 onMounted(() => {
+  portfolio.fetchAnalysis()
+  portfolio.fetchAlerts()
+})
+
+watch(() => portfolio.activeBroker, () => {
   portfolio.fetchAnalysis()
   portfolio.fetchAlerts()
 })
@@ -58,18 +65,18 @@ function alertSeverityClass(severity?: string): string {
           <p class="text-xs mt-1" style="color: var(--text-muted);">Holdings</p>
         </div>
         <div class="card p-4 text-center">
-          <p class="text-lg font-bold font-mono" style="color: #8b5cf6;">{{ analysis ? formatCurrency(analysis.total_invested) : '—' }}</p>
+          <p class="text-lg font-bold font-mono" style="color: #8b5cf6;">{{ analysis ? fmt(analysis.total_invested) : '—' }}</p>
           <p class="text-xs mt-1" style="color: var(--text-muted);">Invested</p>
         </div>
         <div class="card p-4 text-center">
-          <p class="text-lg font-bold font-mono" style="color: #f59e0b;">{{ analysis ? formatCurrency(analysis.total_current_value) : '—' }}</p>
+          <p class="text-lg font-bold font-mono" style="color: #f59e0b;">{{ analysis ? fmt(analysis.total_current_value) : '—' }}</p>
           <p class="text-xs mt-1" style="color: var(--text-muted);">Current Value</p>
         </div>
         <div class="card p-4 text-center">
           <p
             class="text-lg font-bold font-mono"
             :style="{ color: (analysis?.total_pnl ?? 0) >= 0 ? '#22c55e' : '#ef4444' }"
-          >{{ analysis ? formatCurrency(analysis.total_pnl) : '—' }}</p>
+          >{{ analysis ? fmt(analysis.total_pnl) : '—' }}</p>
           <p class="text-xs mt-1" style="color: var(--text-muted);">Total P&amp;L</p>
         </div>
         <div class="card p-4 text-center">
@@ -157,12 +164,12 @@ function alertSeverityClass(severity?: string): string {
               class="hover:bg-white/5 transition-colors"
             >
               <td class="px-4 py-3 font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ h.trading_symbol }}</td>
-              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(h.invested_value) }}</td>
-              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(h.current_value) }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ fmt(h.invested_value) }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ fmt(h.current_value) }}</td>
               <td
                 class="px-4 py-3 text-right font-mono text-xs font-semibold"
                 :class="h.unrealised_pnl >= 0 ? 'text-emerald-400' : 'text-red-400'"
-              >{{ formatCurrency(h.unrealised_pnl) }}</td>
+              >{{ fmt(h.unrealised_pnl) }}</td>
               <td
                 class="px-4 py-3 text-right font-mono text-xs"
                 :class="h.return_pct >= 0 ? 'text-emerald-400' : 'text-red-400'"

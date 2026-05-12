@@ -8,7 +8,7 @@ interface Props {
   subtitle?: string
   loading?: boolean
   height?: string
-  option: EChartsOption
+  option?: EChartsOption
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -36,12 +36,15 @@ const chartStyle = computed(() => ({ height: props.height, width: '100%' }))
       <div class="skeleton h-full rounded-lg" />
     </div>
 
-    <VChart
-      v-else
-      :option="option"
-      :theme="theme"
-      :style="chartStyle"
-      autoresize
-    />
+    <template v-else-if="option">
+      <VChart
+        :option="option"
+        :theme="theme"
+        :style="chartStyle"
+        autoresize
+      />
+    </template>
+
+    <slot v-else />
   </div>
 </template>
