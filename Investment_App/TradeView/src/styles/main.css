@@ -1,0 +1,117 @@
+/* ─── Global Styles ─────────────────────────────────────────────────────────── */
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* ─── CSS Custom Properties (Theme Tokens) ──────────────────────────────────── */
+
+@layer base {
+  :root {
+    --surface-primary: #f8fafc;
+    --surface-secondary: #f1f5f9;
+    --surface-card: #ffffff;
+    --surface-sidebar: #1e293b;
+    --surface-border: #e2e8f0;
+    --text-primary: #1e293b;
+    --text-secondary: #475569;
+    --text-muted: #94a3b8;
+    --scrollbar-thumb: #cbd5e1;
+    --scrollbar-track: #f1f5f9;
+  }
+
+  .dark {
+    --surface-primary: #0b0e1a;
+    --surface-secondary: #0f1117;
+    --surface-card: #141827;
+    --surface-sidebar: #0d0f1a;
+    --surface-border: #1e2340;
+    --text-primary: #e2e8f0;
+    --text-secondary: #94a3b8;
+    --text-muted: #64748b;
+    --scrollbar-thumb: #334155;
+    --scrollbar-track: #1e293b;
+  }
+
+  * {
+    @apply border-[var(--surface-border)];
+  }
+
+  html {
+    scroll-behavior: smooth;
+  }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--surface-primary);
+    color: var(--text-primary);
+    transition: background-color 0.2s ease, color 0.2s ease;
+  }
+
+  /* Custom scrollbar */
+  ::-webkit-scrollbar { width: 6px; height: 6px; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+  ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+}
+
+/* ─── Component Utilities ────────────────────────────────────────────────────── */
+
+@layer components {
+  /* Card */
+  .card {
+    @apply rounded-xl border;
+    background-color: var(--surface-card);
+    border-color: var(--surface-border);
+  }
+
+  /* Stat value */
+  .stat-value {
+    @apply font-mono font-semibold tabular-nums;
+  }
+
+  /* Positive / negative text */
+  .text-profit { @apply text-emerald-500; }
+  .text-loss   { @apply text-red-500; }
+
+  /* Badge base */
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-medium;
+  }
+
+  /* Input base */
+  .input {
+    @apply w-full rounded-lg border px-3 py-2 text-sm outline-none transition-colors;
+    @apply focus:ring-2 focus:ring-brand-500/40;
+    background-color: var(--surface-card);
+    border-color: var(--surface-border);
+    color: var(--text-primary);
+  }
+
+  /* Button base */
+  .btn {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-medium transition-all;
+    @apply focus:outline-none focus:ring-2 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-brand-500 text-white hover:bg-brand-600 focus:ring-brand-500;
+  }
+  .btn-secondary {
+    @apply btn border hover:bg-white/5 focus:ring-brand-500;
+    border-color: var(--surface-border);
+    color: var(--text-secondary);
+  }
+  .btn-ghost {
+    @apply btn text-gray-400 hover:text-white hover:bg-white/5;
+  }
+  .btn-danger {
+    @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
+  }
+
+  /* Loading shimmer */
+  .skeleton {
+    @apply animate-shimmer rounded;
+    background: linear-gradient(90deg, var(--surface-card) 25%, var(--surface-border) 50%, var(--surface-card) 75%);
+    background-size: 200% 100%;
+  }
+}
