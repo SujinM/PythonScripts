@@ -76,6 +76,18 @@ export function formatShortDate(iso: string): string {
   }
 }
 
+/** Format a monetary value — alias for formatPrice, auto-detects INR vs USD */
+export function formatCurrency(value: number, currency = 'INR'): string {
+  return formatPrice(value, currency)
+}
+
+/** Format a percentage with sign (e.g. +12.34%) */
+export function formatPercent(value: number): string {
+  if (value === null || value === undefined || isNaN(value)) return '—'
+  const sign = value > 0 ? '+' : ''
+  return `${sign}${value.toFixed(2)}%`
+}
+
 // ─── Color Helpers ────────────────────────────────────────────────────────────
 
 /** Tailwind text color class for a positive/negative change */

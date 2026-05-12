@@ -1,53 +1,45 @@
 <script setup lang="ts">
-import { ref, onMounted, computed } from 'vue'
-import { useMarketStore } from '@/stores/marketStore'
-import { useSettingsStore } from '@/stores/settingsStore'
-import { formatNumber, timeAgo } from '@/utils/formatters'
+import { onMounted, computed } from 'vue'
+import { usePortfolioStore } from '@/stores/portfolioStore'
+import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
 import { CHART_COLORS } from '@/utils/constants'
 import StatisticCard from '@/components/dashboard/StatisticCard.vue'
-import MarketSummaryCard from '@/components/dashboard/MarketSummaryCard.vue'
-import RecentInstruments from '@/components/dashboard/RecentInstruments.vue'
-import TopSymbols from '@/components/dashboard/TopSymbols.vue'
 import ChartCard from '@/components/charts/ChartCard.vue'
 import PieChart from '@/components/charts/PieChart.vue'
 import BarChart from '@/components/charts/BarChart.vue'
-import LineChart from '@/components/charts/LineChart.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
-import type { EChartsOption } from 'echarts'
 
-const market   = useMarketStore()
-const settings = useSettingsStore()
+const portfolio = usePortfolioStore()
 
 onMounted(async () => {
-  await market.fetchStatistics()
+  await portfolio.fetchBrokers()
+  await Promise.all([
+    portfolio.fetchSummary(),
+    portfolio.fetchHoldings(),
+  ])
 })
 
-const stats = computed(() => market.statistics)
-const loading = computed(() => market.loading)
+const summary = computed(() => portfolio.activeSummary)
+const loading = computed(() => portfolio.loading)
 
-// Chart: instruments by asset type (pie)
-const assetTypePieData = computed(() =>
-  stats.value
-    ? Object.entries(stats.value.assetTypeBreakdown).map(([name, value]) => ({ name, value }))
-    : [],
-)
-
-// Chart: instruments by exchange (bar)
-const exchangeBarData = computed(() => ({
-  categories: stats.value ? Object.keys(stats.value.exchangeBreakdown) : [],
-  values: stats.value ? Object.values(stats.value.exchangeBreakdown) : [],
+// Chart: top gainers vs losers (bar)
+const gainersBar = computed(() => ({
+  categories: (summary.value?.top_gainers ?? []).map((h) => h.trading_symbol),
+  values: (summary.value?.top_gainers ?? []).map((h) => h.return_pct),
 }))
 
-// Chart: mock monthly growth line
-const monthlyGrowth = computed(() => {
-  const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
-  const base = 580
-  let cur = base
-  const data = months.map(() => {
-    cur += Math.floor(Math.random() * 30 + 5)
-    return cur
-  })
-  return { categories: months, data }
+const losersBar = computed(() => ({
+  categories: (summary.value?.top_losers ?? []).map((h) => h.trading_symbol),
+  values: (summary.value?.top_losers ?? []).map((h) => Math.abs(h.return_pct)),
+}))
+
+// Chart: holdings breakdown by exchange (pie)
+const exchangePieData = computed(() => {
+  const map: Record<string, number> = {}
+  for (const h of portfolio.activeHoldings) {
+    map[h.exchange || 'UNKNOWN'] = (map[h.exchange || 'UNKNOWN'] ?? 0) + h.current_value
+  }
+  return Object.entries(map).map(([name, value]) => ({ name, value: Math.round(value) }))
 })
 </script>
 
@@ -56,61 +48,72 @@ const monthlyGrowth = computed(() => {
     <!-- Header row -->
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-xl font-bold" style="color: var(--text-primary);">Overview</h2>
+        <h2 class="text-xl font-bold" style="color: var(--text-primary);">Portfolio Overview</h2>
         <p class="text-sm mt-0.5" style="color: var(--text-muted);">
-          Last sync: {{ stats ? timeAgo(stats.lastSyncAt) : '—' }}
+          {{ portfolio.activeBroker.toUpperCase() }} — {{ summary ? formatNumber(summary.holdings_count) + ' holdings' : 'Loading…' }}
         </p>
       </div>
-      <div v-if="loading" class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
-        <LoadingSpinner size="sm" />
-        <span>Loading…</span>
+      <div class="flex items-center gap-3">
+        <!-- Broker selector -->
+        <select
+          class="input text-sm"
+          :value="portfolio.activeBroker"
+          @change="portfolio.selectBroker(($event.target as HTMLSelectElement).value)"
+        >
+          <option v-for="b in portfolio.brokers" :key="b.id" :value="b.id">
+            {{ b.name ?? b.id }}
+          </option>
+        </select>
+        <div v-if="loading" class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
+          <LoadingSpinner size="sm" />
+        </div>
       </div>
     </div>
 
     <!-- KPI cards -->
     <div class="grid grid-cols-2 lg:grid-cols-4 gap-4">
       <StatisticCard
-        label="Total Instruments"
-        :value="stats ? formatNumber(stats.totalInstruments) : '—'"
+        label="Total Invested"
+        :value="summary ? formatCurrency(summary.total_invested) : '—'"
         icon="instruments"
-        subValue="across all exchanges"
+        subValue="across all holdings"
         accent="#3b82f6"
         :loading="loading"
       />
       <StatisticCard
-        label="Exchanges"
-        :value="stats ? formatNumber(stats.totalExchanges) : '—'"
+        label="Current Value"
+        :value="summary ? formatCurrency(summary.total_current_value) : '—'"
         icon="exchanges"
-        subValue="active markets"
+        subValue="mark-to-market"
         accent="#8b5cf6"
         :loading="loading"
       />
       <StatisticCard
-        label="Tradable"
-        :value="stats ? formatNumber(stats.totalTradable) : '—'"
+        label="Unrealised P&L"
+        :value="summary ? formatCurrency(summary.total_unrealised_pnl) : '—'"
         icon="tradable"
-        trend="up"
-        trendValue="+12 today"
+        :trend="summary && summary.total_unrealised_pnl >= 0 ? 'up' : 'down'"
+        :trendValue="summary ? formatPercent(summary.overall_return_pct) : ''"
         accent="#22c55e"
         :loading="loading"
       />
       <StatisticCard
-        label="Last Synced"
-        :value="stats ? timeAgo(stats.lastSyncAt) : '—'"
+        label="Overall Return"
+        :value="summary ? formatPercent(summary.overall_return_pct) : '—'"
         icon="sync"
-        subValue="instruments updated"
+        subValue="since inception"
         accent="#f59e0b"
         :loading="loading"
       />
     </div>
 
-    <!-- Charts row 1 -->
+    <!-- Charts row -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <!-- Asset type pie -->
-      <ChartCard title="Instruments by Asset Type" subtitle="Distribution across all categories">
+      <!-- Holdings by exchange (pie) -->
+      <ChartCard title="Holdings by Exchange" subtitle="Current value distribution">
         <PieChart
-          v-if="assetTypePieData.length"
-          :data="assetTypePieData"
+          v-if="exchangePieData.length"
+          :data="exchangePieData"
           height="260px"
         />
         <div v-else class="h-[260px] flex items-center justify-center">
@@ -118,13 +121,13 @@ const monthlyGrowth = computed(() => {
         </div>
       </ChartCard>
 
-      <!-- Exchange bar -->
-      <ChartCard title="Instruments by Exchange" subtitle="Top exchanges by instrument count">
+      <!-- Top gainers (bar) -->
+      <ChartCard title="Top Gainers" subtitle="Best performing holdings (return %)">
         <BarChart
-          v-if="exchangeBarData.categories.length"
-          :categories="exchangeBarData.categories"
-          :values="exchangeBarData.values"
-          :color="CHART_COLORS[1]"
+          v-if="gainersBar.categories.length"
+          :categories="gainersBar.categories"
+          :values="gainersBar.values"
+          :color="CHART_COLORS[2]"
           height="260px"
         />
         <div v-else class="h-[260px] flex items-center justify-center">
@@ -133,33 +136,47 @@ const monthlyGrowth = computed(() => {
       </ChartCard>
     </div>
 
-    <!-- Charts row 2 -->
-    <div class="grid grid-cols-1 gap-4">
-      <ChartCard title="Instrument Growth" subtitle="Total instruments tracked over the year">
-        <LineChart
-          :categories="monthlyGrowth.categories"
-          :series="[{ name: 'Instruments', data: monthlyGrowth.data, areaStyle: true }]"
-          height="200px"
-        />
-      </ChartCard>
-    </div>
-
-    <!-- Tables row -->
+    <!-- Top gainers / losers tables -->
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
-      <RecentInstruments :instruments="stats?.recentlyUpdated ?? []" :loading="loading" />
-      <TopSymbols :symbols="stats?.topActiveSymbols ?? []" :loading="loading" />
-    </div>
 
-    <!-- Market summary cards (top active symbols) -->
-    <div>
-      <h3 class="text-sm font-semibold mb-3" style="color: var(--text-primary);">Market Snapshot</h3>
-      <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5 gap-3">
-        <MarketSummaryCard
-          v-for="item in (stats?.topActiveSymbols ?? []).slice(0, 10)"
-          :key="item.symbol"
-          :data="item"
-        />
+      <!-- Gainers -->
+      <div class="card overflow-hidden">
+        <div class="px-4 py-3 border-b" style="border-color: var(--surface-border);">
+          <h3 class="text-sm font-semibold" style="color: var(--text-primary);">Top Gainers</h3>
+        </div>
+        <table class="w-full text-sm">
+          <tbody class="divide-y" style="border-color: var(--surface-border);">
+            <tr v-for="h in (summary?.top_gainers ?? [])" :key="h.instrument_key" class="hover:bg-white/5 transition-colors">
+              <td class="px-4 py-3 font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ h.trading_symbol }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(h.current_value) }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-emerald-400">{{ formatPercent(h.return_pct) }}</td>
+            </tr>
+            <tr v-if="!(summary?.top_gainers?.length)">
+              <td colspan="3" class="px-4 py-6 text-center text-xs" style="color: var(--text-muted);">No data</td>
+            </tr>
+          </tbody>
+        </table>
       </div>
+
+      <!-- Losers -->
+      <div class="card overflow-hidden">
+        <div class="px-4 py-3 border-b" style="border-color: var(--surface-border);">
+          <h3 class="text-sm font-semibold" style="color: var(--text-primary);">Top Losers</h3>
+        </div>
+        <table class="w-full text-sm">
+          <tbody class="divide-y" style="border-color: var(--surface-border);">
+            <tr v-for="h in (summary?.top_losers ?? [])" :key="h.instrument_key" class="hover:bg-white/5 transition-colors">
+              <td class="px-4 py-3 font-mono text-xs font-semibold" style="color: var(--text-primary);">{{ h.trading_symbol }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">{{ formatCurrency(h.current_value) }}</td>
+              <td class="px-4 py-3 text-right font-mono text-xs font-semibold text-red-400">{{ formatPercent(h.return_pct) }}</td>
+            </tr>
+            <tr v-if="!(summary?.top_losers?.length)">
+              <td colspan="3" class="px-4 py-6 text-center text-xs" style="color: var(--text-muted);">No data</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+
     </div>
   </div>
 </template>
