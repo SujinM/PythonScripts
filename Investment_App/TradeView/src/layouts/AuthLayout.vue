@@ -8,10 +8,7 @@ import { RouterView } from 'vue-router'
     style="background: linear-gradient(135deg, #0b0e1a 0%, #0f1629 50%, #0b1020 100%);"
   >
     <!-- Background grid pattern -->
-    <div
-      class="absolute inset-0 opacity-20"
-      style="background-image: url(\"data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40' fill='none' stroke='%233b82f6' stroke-opacity='0.3' stroke-width='1'/%3E%3C/svg%3E\");"
-    />
+    <div class="absolute inset-0 opacity-20 auth-grid" />
 
     <!-- Logo / branding above form -->
     <div class="relative z-10 w-full max-w-md">
@@ -32,3 +29,9 @@ import { RouterView } from 'vue-router'
     </div>
   </div>
 </template>
+
+<style scoped>
+.auth-grid {
+  background-image: url("data:image/svg+xml,%3Csvg width='40' height='40' xmlns='http://www.w3.org/2000/svg'%3E%3Cpath d='M0 40L40 0H20L0 20M40 40V20L20 40' fill='none' stroke='%233b82f6' stroke-opacity='0.3' stroke-width='1'/%3E%3C/svg%3E");
+}
+</style>
