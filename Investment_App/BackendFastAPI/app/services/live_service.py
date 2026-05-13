@@ -110,7 +110,9 @@ class UpstoxLiveService:
                 try:
                     data = await self._fetch_ltp(client, instrument_keys)
                     ticks = {
-                        key: {
+                        # Upstox LTP response uses ':' as separator (e.g. "NSE_EQ:INE848E01016")
+                        # but holdings instrument_key uses '|' — normalise so they match.
+                        key.replace(":", "|"): {
                             "ltp": info.get("last_price"),
                             "close": info.get("ohlc", {}).get("close"),
                             "ts": ts,

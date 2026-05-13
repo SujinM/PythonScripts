@@ -32,7 +32,8 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
   }
 
   function connect() {
-    if (stopped) return
+    stopped = false // allow re-connect after an explicit disconnect()
+    if (ws?.readyState === WebSocket.OPEN || ws?.readyState === WebSocket.CONNECTING) return
 
     const url = buildUrl()
     ws = new WebSocket(url)

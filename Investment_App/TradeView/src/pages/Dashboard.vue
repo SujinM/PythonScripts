@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { onMounted, computed, watch } from 'vue'
+import { onMounted, onUnmounted, computed, watch } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolioStore'
+import { useLiveTick } from '@/composables/useLiveTick'
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
 import { CHART_COLORS } from '@/utils/constants'
 import StatisticCard from '@/components/dashboard/StatisticCard.vue'
@@ -13,22 +14,44 @@ const portfolio = usePortfolioStore()
 const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
 const fmt = (v: number) => formatCurrency(v, currency.value)
 
+// ── Live tick management ──────────────────────────────────────────────────────
+const liveTickMap: Record<string, ReturnType<typeof useLiveTick>> = {}
+
+function getLiveTick(brokerId: string) {
+  if (!liveTickMap[brokerId]) liveTickMap[brokerId] = useLiveTick(brokerId)
+  return liveTickMap[brokerId]
+}
+
+function startLiveTick(brokerId: string) {
+  getLiveTick(brokerId).connect()
+}
+
+onUnmounted(() => {
+  Object.values(liveTickMap).forEach((lt) => lt.disconnect())
+})
+
 onMounted(async () => {
   await portfolio.fetchBrokers()
   await Promise.all([
     portfolio.fetchSummary(),
     portfolio.fetchHoldings(),
   ])
+  startLiveTick(portfolio.activeBroker)
 })
 
-watch(() => portfolio.activeBroker, async () => {
+watch(() => portfolio.activeBroker, async (newBroker, oldBroker) => {
+  if (liveTickMap[oldBroker]) {
+    liveTickMap[oldBroker].disconnect()
+    delete liveTickMap[oldBroker] // discard stopped instance so a fresh one is created on switch-back
+  }
   await Promise.all([
     portfolio.fetchSummary(),
     portfolio.fetchHoldings(),
   ])
+  startLiveTick(newBroker)
 })
 
-const summary = computed(() => portfolio.activeSummary)
+const summary = computed(() => portfolio.activeSummaryWithLivePrice)
 const loading = computed(() => portfolio.loading)
 
 // Chart: top gainers vs losers (bar)
@@ -45,7 +68,7 @@ const losersBar = computed(() => ({
 // Chart: holdings breakdown by exchange (pie)
 const exchangePieData = computed(() => {
   const map: Record<string, number> = {}
-  for (const h of portfolio.activeHoldings) {
+  for (const h of portfolio.activeHoldingsWithLivePrice) {
     map[h.exchange || 'UNKNOWN'] = (map[h.exchange || 'UNKNOWN'] ?? 0) + h.current_value
   }
   return Object.entries(map).map(([name, value]) => ({ name, value: Math.round(value) }))

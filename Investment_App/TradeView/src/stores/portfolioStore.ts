@@ -9,6 +9,7 @@ import type {
   Alert,
   BrokerInfo,
   LiveTickFrame,
+  UpstoxTick,
 } from '@/types/portfolio'
 import { portfolioApi } from '@/api/portfolio'
 import { useNotificationStore } from './notificationStore'
@@ -48,6 +49,41 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   const activeAlerts    = computed(() => alerts.value[activeBroker.value]    ?? [])
   const activeLiveTicks = computed(() => liveTicks.value[activeBroker.value] ?? {})
   const activeCurrency  = computed(() => activeBroker.value === 'etoro' ? 'USD' : 'INR')
+
+  /** Holdings with live LTP overlaid — recomputes on every tick frame. */
+  const activeHoldingsWithLivePrice = computed<Holding[]>(() => {
+    const ticks = activeLiveTicks.value
+    if (!Object.keys(ticks).length) return activeHoldings.value
+    return activeHoldings.value.map((h) => {
+      const tick = ticks[h.instrument_key]
+      if (!tick) return h
+      const ltp = 'ltp' in tick
+        ? (tick as UpstoxTick).ltp
+        : ((tick as { bid: number; ask: number }).bid + (tick as { bid: number; ask: number }).ask) / 2
+      if (!ltp || ltp <= 0) return h
+      const current_value   = ltp * h.quantity
+      const unrealised_pnl  = current_value - h.invested_value
+      const return_pct      = h.invested_value > 0 ? (unrealised_pnl / h.invested_value) * 100 : 0
+      return { ...h, last_price: ltp, current_value, unrealised_pnl, return_pct }
+    })
+  })
+
+  /** Summary with totals recomputed from live holdings. */
+  const activeSummaryWithLivePrice = computed<PortfolioSummary | null>(() => {
+    const base = activeSummary.value
+    if (!base) return null
+    if (!Object.keys(activeLiveTicks.value).length) return base
+    const lh = activeHoldingsWithLivePrice.value
+    const total_current_value  = lh.reduce((s, h) => s + h.current_value, 0)
+    const total_unrealised_pnl = total_current_value - base.total_invested
+    const overall_return_pct   = base.total_invested > 0
+      ? (total_unrealised_pnl / base.total_invested) * 100
+      : 0
+    const sorted      = [...lh].sort((a, b) => b.return_pct - a.return_pct)
+    const top_gainers = sorted.slice(0, 5).filter((h) => h.return_pct > 0)
+    const top_losers  = [...lh].sort((a, b) => a.return_pct - b.return_pct).slice(0, 5).filter((h) => h.return_pct < 0)
+    return { ...base, total_current_value, total_unrealised_pnl, overall_return_pct, top_gainers, top_losers }
+  })
 
   // ── Actions ──────────────────────────────────────────────────────────────
 
@@ -206,6 +242,8 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     activeAlerts,
     activeLiveTicks,
     activeCurrency,
+    activeHoldingsWithLivePrice,
+    activeSummaryWithLivePrice,
     // actions
     fetchBrokers,
     selectBroker,

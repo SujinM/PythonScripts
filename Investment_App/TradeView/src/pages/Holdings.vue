@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
 import { usePortfolioStore } from '@/stores/portfolioStore'
+import { useLiveTick } from '@/composables/useLiveTick'
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
@@ -9,6 +10,18 @@ import Badge from '@/components/common/Badge.vue'
 const portfolio = usePortfolioStore()
 const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
 const fmt = (v: number) => formatCurrency(v, currency.value)
+
+// ── Live tick management ──────────────────────────────────────────────────────
+const liveTickMap: Record<string, ReturnType<typeof useLiveTick>> = {}
+
+function getLiveTick(brokerId: string) {
+  if (!liveTickMap[brokerId]) liveTickMap[brokerId] = useLiveTick(brokerId)
+  return liveTickMap[brokerId]
+}
+
+onUnmounted(() => {
+  Object.values(liveTickMap).forEach((lt) => lt.disconnect())
+})
 
 const searchQuery = ref('')
 const activeTab   = ref<'holdings' | 'positions' | 'trades'>('holdings')
@@ -19,20 +32,26 @@ onMounted(async () => {
     portfolio.fetchPositions(),
     portfolio.fetchTrades(),
   ])
+  getLiveTick(portfolio.activeBroker).connect()
 })
 
-watch(() => portfolio.activeBroker, async () => {
+watch(() => portfolio.activeBroker, async (newBroker, oldBroker) => {
+  if (liveTickMap[oldBroker]) {
+    liveTickMap[oldBroker].disconnect()
+    delete liveTickMap[oldBroker] // discard stopped instance so a fresh one is created on switch-back
+  }
   await Promise.all([
     portfolio.fetchHoldings(),
     portfolio.fetchPositions(),
     portfolio.fetchTrades(),
   ])
+  getLiveTick(newBroker).connect()
 })
 
 // ── Filtered holdings ─────────────────────────────────────────────────────────
 const filteredHoldings = computed(() => {
   const q = searchQuery.value.toLowerCase()
-  return portfolio.activeHoldings.filter(
+  return portfolio.activeHoldingsWithLivePrice.filter(
     (h) =>
       !q ||
       h.trading_symbol.toLowerCase().includes(q) ||
