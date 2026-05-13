@@ -3,7 +3,6 @@ import { ref, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
 import { useAuthStore } from '@/stores/authStore'
 import { useSettingsStore } from '@/stores/settingsStore'
-import { useMarketStore } from '@/stores/marketStore'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 
@@ -11,7 +10,6 @@ const route    = useRoute()
 const router   = useRouter()
 const auth     = useAuthStore()
 const settings = useSettingsStore()
-const market   = useMarketStore()
 
 const showUserMenu = ref(false)
 
@@ -24,7 +22,7 @@ const pageTitle = computed(() => {
     'sync':              'Sync Management',
     'settings':          'Settings',
   }
-  return map[String(route.name)] ?? 'eToro Dashboard'
+  return map[String(route.name)] ?? 'Investment Portfolio'
 })
 
 async function handleLogout() {
@@ -75,17 +73,6 @@ function handleSearch(query: string) {
       <!-- Theme toggle -->
       <ThemeToggle />
 
-      <!-- Refresh market data -->
-      <button
-        class="p-1.5 rounded-md text-gray-500 hover:text-white hover:bg-white/5 transition-colors"
-        title="Refresh market data"
-        @click="market.refreshAll"
-      >
-        <svg class="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-        </svg>
-      </button>
-
       <!-- User avatar + dropdown -->
       <div class="relative">
         <button
@@ -93,10 +80,10 @@ function handleSearch(query: string) {
           @click="showUserMenu = !showUserMenu"
         >
           <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center">
-            <span class="text-white text-xs font-bold">A</span>
+            <span class="text-white text-xs font-bold">{{ (auth.user?.username ?? auth.user?.email ?? 'U')[0].toUpperCase() }}</span>
           </div>
           <span class="hidden sm:block text-xs font-medium" style="color: var(--text-secondary);">
-            {{ auth.user?.username ?? 'analyst' }}
+            {{ auth.user?.username ?? auth.user?.email ?? 'User' }}
           </span>
         </button>
 

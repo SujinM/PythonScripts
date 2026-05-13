@@ -2,10 +2,13 @@
 import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settingsStore'
+import { useAuthStore } from '@/stores/authStore'
 
 const settings = useSettingsStore()
+const auth = useAuthStore()
 const route = useRoute()
 const collapsed = computed(() => settings.sidebarCollapsed)
+const userInitial = computed(() => (auth.user?.username ?? auth.user?.email ?? 'U')[0].toUpperCase())
 
 interface NavItem {
   name: string
@@ -40,7 +43,7 @@ function isActive(path: string): boolean {
       <div
         class="flex items-center justify-center w-8 h-8 rounded-lg bg-brand-500 flex-shrink-0 shadow-lg shadow-brand-500/30"
       >
-        <span class="text-white font-bold text-xs tracking-tight">eT</span>
+        <span class="text-white font-bold text-xs tracking-tight">IP</span>
       </div>
       <Transition
         enter-active-class="transition-opacity duration-200"
@@ -49,7 +52,7 @@ function isActive(path: string): boolean {
         leave-to-class="opacity-0"
       >
         <span v-if="!collapsed" class="text-white font-bold text-lg tracking-tight">
-          eToro <span class="text-brand-400">Pro</span>
+          Investment <span class="text-brand-400">Portfolio</span>
         </span>
       </Transition>
 
@@ -130,11 +133,11 @@ function isActive(path: string): boolean {
     <div v-if="!collapsed" class="px-3 pb-4 border-t border-gray-800/60 pt-3">
       <div class="flex items-center gap-2 px-2 py-1.5">
         <div class="w-7 h-7 rounded-full bg-gradient-to-br from-brand-400 to-brand-600 flex items-center justify-center flex-shrink-0">
-          <span class="text-white text-xs font-bold">A</span>
+          <span class="text-white text-xs font-bold">{{ userInitial }}</span>
         </div>
         <div class="min-w-0">
-          <p class="text-xs font-medium text-gray-200 truncate">analyst@etoro.com</p>
-          <p class="text-[10px] text-gray-500 truncate">Analyst</p>
+          <p class="text-xs font-medium text-gray-200 truncate">{{ auth.user?.email ?? 'admin@local.com' }}</p>
+          <p class="text-[10px] text-gray-500 truncate capitalize">{{ auth.user?.role ?? 'user' }}</p>
         </div>
       </div>
     </div>

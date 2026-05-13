@@ -1,29 +1,7 @@
 <script setup lang="ts">
-import { onMounted } from 'vue'
 import { RouterView } from 'vue-router'
 import Sidebar from '@/components/layout/Sidebar.vue'
 import Navbar from '@/components/layout/Navbar.vue'
-
-// Ensure auto-refresh starts on layout mount
-import { useMarketStore } from '@/stores/marketStore'
-import { useSettingsStore } from '@/stores/settingsStore'
-import { REFRESH_INTERVALS } from '@/utils/constants'
-
-const market   = useMarketStore()
-const settings = useSettingsStore()
-
-let refreshTimer: ReturnType<typeof setInterval> | null = null
-
-onMounted(async () => {
-  await market.fetchStatistics()
-  await market.fetchBulkMarketData()
-
-  if (settings.autoRefresh) {
-    refreshTimer = setInterval(() => {
-      market.fetchBulkMarketData()
-    }, REFRESH_INTERVALS.MARKET_DATA)
-  }
-})
 </script>
 
 <template>

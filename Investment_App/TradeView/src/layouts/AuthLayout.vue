@@ -15,10 +15,10 @@ import { RouterView } from 'vue-router'
       <div class="text-center mb-8">
         <div class="inline-flex items-center gap-2 mb-3">
           <div class="w-10 h-10 rounded-xl bg-brand-500 flex items-center justify-center shadow-lg shadow-brand-500/40">
-            <span class="text-white font-bold text-sm">eT</span>
+            <span class="text-white font-bold text-sm">IP</span>
           </div>
           <span class="text-white font-bold text-2xl tracking-tight">
-            eToro <span class="text-brand-400">Pro</span>
+            Investment <span class="text-brand-400">Portfolio</span>
           </span>
         </div>
         <p class="text-gray-500 text-sm">Financial Instruments Dashboard</p>

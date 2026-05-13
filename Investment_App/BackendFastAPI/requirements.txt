@@ -11,6 +11,13 @@ rich>=13.7.0
 pytest>=8.0.0
 pytest-asyncio>=0.23.0
 pytest-mock>=3.14.0
+# Auth & Database
+sqlalchemy>=2.0.0
+bcrypt>=4.0.0
+python-jose[cryptography]>=3.3.0
+python-multipart>=0.0.9
+email-validator>=2.1.0
+
 # Broker libraries — install as editable packages from their source folders:
 #   pip install -e ../upstox     (provides upstox_app)
 #   pip install -e ../etoro      (provides etoro_app)

@@ -20,6 +20,19 @@ const routes: RouteRecordRaw[] = [
       },
     ],
   },
+  {
+    path: '/register',
+    component: AuthLayout,
+    meta: { requiresGuest: true },
+    children: [
+      {
+        path: '',
+        name: 'register',
+        component: () => import('@/pages/Register.vue'),
+        meta: { title: 'Create Account' },
+      },
+    ],
+  },
 
   // ─── App Routes (require auth) ────────────────────────────────────────────
   {
@@ -90,21 +103,26 @@ const router = createRouter({
 
 // ─── Navigation Guards ────────────────────────────────────────────────────────
 
-router.beforeEach((to, _from, next) => {
+let _authInitialised = false
+
+router.beforeEach(async (to, _from, next) => {
   // Update document title
   const title = to.meta.title as string | undefined
-  document.title = title ? `${title} — eToro Dashboard` : 'eToro Dashboard'
+  document.title = title ? `${title} — Investment Portfolio` : 'Investment Portfolio'
 
   const authStore = useAuthStore()
-  const isMock    = import.meta.env.VITE_MOCK_DATA === 'true'
+
+  // On the very first navigation, attempt to restore a persisted session.
+  if (!_authInitialised) {
+    _authInitialised = true
+    await authStore.checkAuth()
+  }
 
   if (to.meta.requiresAuth) {
-    // In mock mode restore the session silently so users aren't blocked
-    if (isMock) {
-      authStore.restoreSession()
-    }
     if (!authStore.isAuthenticated) {
-      return next({ name: 'login', query: { redirect: to.fullPath } })
+      // Only carry a redirect param for meaningful deep-link paths (not just '/')
+      const redirectTo = to.fullPath !== '/' ? { redirect: to.fullPath } : undefined
+      return next({ name: 'login', query: redirectTo })
     }
   }
 

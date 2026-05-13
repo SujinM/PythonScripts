@@ -38,12 +38,12 @@ api.interceptors.response.use(
         const refreshToken = localStorage.getItem(STORAGE_KEYS.REFRESH_TOKEN)
         if (refreshToken) {
           const { data } = await axios.post(
-            `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/auth/refresh`,
+            `${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/auth/refresh`,
             { refreshToken },
           )
-          localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.accessToken)
+          localStorage.setItem(STORAGE_KEYS.ACCESS_TOKEN, data.access_token)
           if (originalRequest.headers) {
-            originalRequest.headers.Authorization = `Bearer ${data.accessToken}`
+            originalRequest.headers.Authorization = `Bearer ${data.access_token}`
           }
           return api(originalRequest)
         }

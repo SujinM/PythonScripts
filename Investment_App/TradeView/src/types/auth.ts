@@ -1,6 +1,6 @@
 // ─── Auth Types ───────────────────────────────────────────────────────────────
 
-export type UserRole = 'admin' | 'analyst' | 'viewer'
+export type UserRole = 'admin' | 'analyst' | 'user' | 'viewer'
 
 export interface User {
   id: string
@@ -10,8 +10,8 @@ export interface User {
   avatar?: string
   firstName?: string
   lastName?: string
-  preferences?: UserPreferences
   createdAt?: string
+  preferences?: UserPreferences
 }
 
 export interface UserPreferences {
@@ -32,6 +32,13 @@ export interface LoginCredentials {
   email: string
   password: string
   rememberMe?: boolean
+}
+
+export interface RegisterCredentials {
+  username: string
+  email: string
+  password: string
+  confirmPassword: string
 }
 
 export interface AuthState {

@@ -19,6 +19,7 @@ from app.api.v1.router import router as v1_router
 from app.core.config import get_settings
 from app.core.exceptions import BrokerAuthError, BrokerError, BrokerNotFoundError
 from app.core.logger import get_logger
+from app.db.init_db import init_db
 
 # ── Import broker adapters so they self-register ───────────────────────────────
 import app.brokers.upstox  # noqa: F401
@@ -36,6 +37,7 @@ async def lifespan(app: FastAPI):
         settings.app_env,
         settings.log_level,
     )
+    init_db()
     yield
     logger.info("Shutting down Investment Portfolio API")
 

@@ -1,4 +1,10 @@
 .env
+
+# SQLite databases (auto-created on startup, contain credentials/user data)
+*.db
+*.db-shm
+*.db-wal
+
 __pycache__/
 *.py[cod]
 *.pyo

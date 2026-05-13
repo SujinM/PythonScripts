@@ -39,6 +39,21 @@ class Settings(BaseSettings):
     # Optional Redis
     redis_url: str = ""
 
+    # ── Auth / JWT ────────────────────────────────────────────────────────
+    # Set JWT_SECRET in your .env — never use the default in production
+    jwt_secret: str = "dev-only-secret-change-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expire_minutes: int = 60
+    jwt_refresh_expire_days: int = 7
+
+    # ── Default admin seed (used only on first startup) ───────────────────
+    admin_username: str = "admin"
+    admin_email: str = "admin@local.com"
+    admin_password: str = "Admin@123"
+
+    # ── Database ──────────────────────────────────────────────────────────
+    db_url: str = "sqlite:///./investment_app.db"
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
