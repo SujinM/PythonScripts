@@ -43,9 +43,9 @@ if not exist "%FRONTEND_DIR%\node_modules" (
 )
 
 :: ── 3. Start Vite dev server in background ───────────────────
-echo  [3/3] Starting Vite dev server at http://localhost:5173 ...
+echo  [3/3] Starting Vite dev server at http://localhost:3000 ...
 echo.
-echo  Dashboard : http://localhost:5173
+echo  Dashboard : http://localhost:3000
 echo  Backend   : http://localhost:8000
 echo  API Docs  : http://localhost:8000/docs
 echo.
@@ -56,17 +56,20 @@ start "ViteDev" cmd /c "npm run dev"
 
 :: ── 4. Wait for Vite to be ready, then open Edge ─────────────
 echo  Waiting for Vite to be ready...
+set /a RETRIES=0
 :wait_loop
 timeout /t 2 /nobreak >nul
-powershell -NoProfile -Command "try { $r = Invoke-WebRequest -Uri 'http://localhost:5173' -UseBasicParsing -TimeoutSec 2 -ErrorAction Stop; exit 0 } catch { exit 1 }" >nul 2>&1
-if errorlevel 1 goto wait_loop
+powershell -NoProfile -Command "if ((Test-NetConnection -ComputerName localhost -Port 3000 -InformationLevel Quiet -WarningAction SilentlyContinue)) { exit 0 } else { exit 1 }" >nul 2>&1
+if not errorlevel 1 goto vite_ready
+set /a RETRIES+=1
+if %RETRIES% lss 30 goto wait_loop
+echo  [WARN] Vite did not respond after 60 s — opening browser anyway...
+:vite_ready
 
 echo  Vite is ready — launching Microsoft Edge...
-start "" "msedge.exe" "http://localhost:5173"
+start "" "msedge.exe" "http://localhost:3000"
 
-:: Keep this window open so user can see status
-echo.
-echo  Browser launched. Close this window or press any key to exit.
-pause >nul
+echo  Browser launched. This window will close automatically.
+timeout /t 2 /nobreak >nul
 
 endlocal
