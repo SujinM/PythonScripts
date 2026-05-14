@@ -108,21 +108,36 @@ BackendFastAPI/
 # 1. Clone / navigate to project
 cd Investment_App/BackendFastAPI
 
-# 2. Create virtual environment
-python -m venv .venv
+# 2. Use Python 3.11+ (required by ../upstox and ../etoro)
+python3.11 --version
+
+# 3. Create project-local virtual environment
+python3.11 -m venv .venv
 .venv\Scripts\activate        # Windows
 source .venv/bin/activate     # Linux / macOS
 
-# 3. Install dependencies
+# 4. Verify interpreter inside this shell
+python --version               # must be 3.11+
+
+# 5. Install dependencies
 pip install -r requirements.txt
 
-# 4. Install broker libraries as editable packages
-pip install -e ../upstox     # provides upstox_app
-pip install -e ../etoro      # provides etoro_app
+# 6. Broker libraries are installed via requirements.txt as editable deps:
+#    -e ../upstox
+#    -e ../etoro
 
-# 5. Configure environment
+# 7. Configure environment
 cp .env.example .env
 # Edit .env and fill in your broker credentials
+```
+
+If you still see "requires a different Python: 3.9.6 not in '>=3.11'", your shell is using a
+different venv (for example the workspace root .venv). Activate this project venv explicitly:
+
+```bash
+source Investment_App/BackendFastAPI/.venv/bin/activate
+python --version
+pip --version
 ```
 
 ---
