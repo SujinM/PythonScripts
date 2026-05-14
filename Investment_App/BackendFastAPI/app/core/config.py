@@ -24,6 +24,16 @@ class Settings(BaseSettings):
     log_level: str = "INFO"
     cache_ttl_seconds: int = 300
 
+    # Logging
+    # Log file is written relative to the working directory (BackendFastAPI/).
+    # Set LOG_FILE=off to disable file logging (console only).
+    log_file: str = "logs/app.log"
+
+    # Debug / tracing
+    # Set PORTFOLIO_DEBUG_LOG=true in .env (or env var) to enable on startup.
+    # Can also be toggled at runtime via POST /api/v1/debug/portfolio-trace?enabled=true
+    portfolio_debug_log: bool = True
+
     # Upstox
     upstox_api_key: str = ""
     upstox_api_secret: str = ""

@@ -12,6 +12,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from app.brokers.registry import BrokerRegistry
 from app.core.cache import InMemoryCache
 from app.core.config import get_settings
+from app.core.debug_flags import is_portfolio_trace
 from app.core.exceptions import BrokerNotFoundError
 from app.core.logger import get_logger
 from app.models.portfolio import Holding, PortfolioSummary, Position, Trade
@@ -86,9 +87,26 @@ class PortfolioService:
             round(total_unrealised / total_invested * 100, 4) if total_invested else 0.0
         )
 
-        sorted_holdings = sorted(holdings, key=lambda h: h.unrealised_pnl, reverse=True)
+        sorted_holdings = sorted(holdings, key=lambda h: h.return_pct, reverse=True)
         top_gainers = sorted_holdings[:3]
         top_losers = sorted_holdings[-3:][::-1]
+
+        if is_portfolio_trace():
+            logger.info("[TRACE summary] ══════════ %s (%d holdings) ══════════",
+                        broker_id, len(holdings))
+            logger.info("[TRACE summary]   %-22s  %10s  %10s  %10s  %9s",
+                        "symbol", "invested", "current", "pnl", "return%")
+            for h in holdings:
+                logger.info("[TRACE summary]   %-22s  %10.2f  %10.2f  %+10.4f  %+9.4f%%",
+                            h.trading_symbol, h.invested_value,
+                            h.current_value, h.unrealised_pnl, h.return_pct)
+            logger.info("[TRACE summary]   %s", "-" * 72)
+            logger.info("[TRACE summary]   TOTAL: invested=%.2f  current=%.2f  pnl=%+.4f  return=%+.4f%%",
+                        total_invested, total_current, total_unrealised, return_pct)
+            logger.info("[TRACE summary]   top_gainers: %s",
+                        [(h.trading_symbol, f"{h.return_pct:+.4f}%") for h in top_gainers])
+            logger.info("[TRACE summary]   top_losers:  %s",
+                        [(h.trading_symbol, f"{h.return_pct:+.4f}%") for h in top_losers])
 
         summary = PortfolioSummary(
             broker=broker_id,

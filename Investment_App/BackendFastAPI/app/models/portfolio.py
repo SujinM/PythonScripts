@@ -26,19 +26,32 @@ class Holding(BaseModel):
     last_price: float
     close_price: float = 0.0
 
+    # Optional overrides for broker-provided pre-computed values.
+    # When set, these take priority over formula-based computed fields.
+    # Use for brokers like eToro where leveraged positions, fees, and
+    # overnight charges make quantity × price formulas inaccurate.
+    invested_amount: Optional[float] = Field(default=None, exclude=True)
+    broker_pnl: Optional[float] = Field(default=None, exclude=True)
+
     @computed_field  # type: ignore[misc]
     @property
     def invested_value(self) -> float:
+        if self.invested_amount is not None:
+            return round(self.invested_amount, 2)
         return round(self.quantity * self.average_price, 2)
 
     @computed_field  # type: ignore[misc]
     @property
     def current_value(self) -> float:
+        if self.invested_amount is not None and self.broker_pnl is not None:
+            return round(self.invested_amount + self.broker_pnl, 2)
         return round(self.quantity * self.last_price, 2)
 
     @computed_field  # type: ignore[misc]
     @property
     def unrealised_pnl(self) -> float:
+        if self.broker_pnl is not None:
+            return round(self.broker_pnl, 2)
         return round(self.current_value - self.invested_value, 2)
 
     @computed_field  # type: ignore[misc]

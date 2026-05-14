@@ -370,6 +370,13 @@ class EToroLiveService:
                                     "name": _names.get(iid, iid),
                                     "bid": bid,
                                     "ask": ask,
+                                    # mid is always a single usable price — never None
+                                    # when at least one of bid/ask is present.  The
+                                    # frontend must use THIS field, not recompute
+                                    # (bid+ask)/2, because ask can be None and
+                                    # JavaScript arithmetic silently treats None as 0,
+                                    # producing half the real price.
+                                    "mid": mid,
                                     "last_exec": last_exec,
                                     "change_pct": change_pct,
                                     "volume": volume,

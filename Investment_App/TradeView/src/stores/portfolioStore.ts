@@ -10,6 +10,7 @@ import type {
   BrokerInfo,
   LiveTickFrame,
   UpstoxTick,
+  EToroTick,
 } from '@/types/portfolio'
 import { portfolioApi } from '@/api/portfolio'
 import { useNotificationStore } from './notificationStore'
@@ -57,12 +58,27 @@ export const usePortfolioStore = defineStore('portfolio', () => {
     return activeHoldings.value.map((h) => {
       const tick = ticks[h.instrument_key]
       if (!tick) return h
-      const ltp = 'ltp' in tick
-        ? (tick as UpstoxTick).ltp
-        : ((tick as { bid: number; ask: number }).bid + (tick as { bid: number; ask: number }).ask) / 2
+      let ltp: number | null
+      if ('ltp' in tick) {
+        ltp = (tick as UpstoxTick).ltp
+      } else {
+        const e = tick as EToroTick
+        // Prefer backend-computed mid (null-safe, sent since backend v2).
+        // Fall back to manual computation so old backends still work.
+        // NEVER do (bid + ask)/2 directly: if ask=null JS gives bid/2 (halved).
+        if (e.mid != null) {
+          ltp = e.mid
+        } else if (e.bid != null && e.ask != null) {
+          ltp = (e.bid + e.ask) / 2
+        } else {
+          ltp = e.bid ?? e.ask ?? null
+        }
+      }
       if (!ltp || ltp <= 0) return h
-      const current_value   = ltp * h.quantity
-      const unrealised_pnl  = current_value - h.invested_value
+      // Use invested_value as the base so leveraged positions (e.g. eToro) are
+      // calculated correctly: current = invested + (price_change × units)
+      const unrealised_pnl  = (ltp - h.average_price) * h.quantity
+      const current_value   = h.invested_value + unrealised_pnl
       const return_pct      = h.invested_value > 0 ? (unrealised_pnl / h.invested_value) * 100 : 0
       return { ...h, last_price: ltp, current_value, unrealised_pnl, return_pct }
     })

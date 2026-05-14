@@ -95,8 +95,12 @@ export interface UpstoxTick {
 
 export interface EToroTick {
   name: string
-  bid: number
-  ask: number
+  bid: number | null
+  ask: number | null
+  /** Pre-computed mid price from the backend — always use this, never (bid+ask)/2.
+   *  When eToro pushes only one side, ask or bid may be null, which would
+   *  silently halve the price in JS arithmetic. The backend null-checks both. */
+  mid: number | null
   ts: number
 }
 

@@ -41,6 +41,9 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
     ws.onopen = () => {
       isConnected.value = true
       lastError.value = null
+      // Refresh holdings + summary so the store is never stale after a reconnect
+      // (backend cache is cleared on server restart, so data may have changed).
+      portfolio.refreshAll(broker).catch(() => { /* ignore — WS tick will keep updating */ })
     }
 
     ws.onmessage = (event) => {

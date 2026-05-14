@@ -41,6 +41,7 @@ from etoro_app.services.portfolio_service import PortfolioService as _EToroPortf
 from app.brokers.base import IBrokerAdapter
 from app.brokers.registry import registry
 from app.core.config import get_settings
+from app.core.debug_flags import is_portfolio_trace
 from app.core.exceptions import BrokerAuthError, BrokerError
 from app.core.logger import get_logger
 from app.models.portfolio import Holding, Position, Trade
@@ -81,7 +82,7 @@ class _SettingsConfig:
 
 def _to_holding(p: _em.Position) -> Holding:
     """eToro open Position → unified Holding."""
-    return Holding(
+    h = Holding(
         broker="etoro",
         instrument_key=str(p.instrument_id),
         trading_symbol=p.instrument_name,
@@ -91,7 +92,22 @@ def _to_holding(p: _em.Position) -> Holding:
         average_price=p.open_rate,
         last_price=p.current_rate,
         close_price=p.current_rate,
+        invested_amount=p.amount,     # actual invested USD (not units × open_rate)
+        broker_pnl=p.unrealised_pnl,  # eToro P&L includes leverage, fees, overnight
     )
+    if is_portfolio_trace():
+        logger.info(
+            "[TRACE etoro] %-22s | "
+            "RAW: amount=%9.2f  units=%9.4f  open_rate=%9.4f  curr_rate=%9.4f  "
+            "etoro_pnl=%+10.4f  leverage=%s  "
+            "| COMPUTED: invested_value=%9.2f  current_value=%9.2f  "
+            "unrealised_pnl=%+10.4f  return_pct=%+8.4f%%",
+            p.instrument_name,
+            p.amount, float(p.units), p.open_rate, p.current_rate,
+            p.unrealised_pnl, getattr(p, "leverage", "?"),
+            h.invested_value, h.current_value, h.unrealised_pnl, h.return_pct,
+        )
+    return h
 
 
 def _to_position(p: _em.Position) -> Position:

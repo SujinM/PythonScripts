@@ -76,9 +76,15 @@ export function formatShortDate(iso: string): string {
   }
 }
 
-/** Format a monetary value — alias for formatPrice, auto-detects INR vs USD */
+/** Format a monetary value (portfolio $ amounts) — always 2 decimal places */
 export function formatCurrency(value: number, currency = 'INR'): string {
-  return formatPrice(value, currency)
+  if (value === null || value === undefined || isNaN(value)) return '—'
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency,
+    minimumFractionDigits: 2,
+    maximumFractionDigits: 2,
+  }).format(value)
 }
 
 /** Format a percentage with sign (e.g. +12.34%) */
