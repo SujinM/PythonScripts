@@ -79,15 +79,20 @@ BackendFastAPI/
 │   │   ├── upstox.py              # UpstoxAdapter  (delegates to upstox_app)
 │   │   └── etoro.py               # EToroAdapter   (delegates to etoro_app)
 │   ├── services/
-│   │   ├── portfolio_service.py   # Orchestrates broker calls + cache
-│   │   ├── analysis_service.py    # Pure analysis: alerts, P&L, allocation
-│   │   └── live_service.py        # Live price streaming (Upstox REST poll / eToro WebSocket)
+│   │   ├── portfolio_service.py       # Orchestrates broker calls + cache
+│   │   ├── analysis_service.py        # Pure analysis: alerts, P&L, allocation
+│   │   ├── live_service.py            # Live price streaming (Upstox REST poll / eToro WebSocket)
+│   │   ├── recommendation_service.py  # AI scoring engine (trend/momentum/valuation/risk)
+│   │   ├── backtest_service.py        # 20-scenario sweep for signal flip analysis
+│   │   └── etoro_market_service.py    # Live eToro prices via Public API (bid, 24h change)
 │   └── api/
 │       ├── deps.py                # FastAPI Depends() providers
 │       └── v1/
 │           ├── router.py          # Aggregate v1 router
 │           ├── portfolio.py       # /holdings /positions /trades /summary
 │           ├── analysis.py        # /analysis /alerts /brokers
+│           ├── market.py          # /market/{symbol} live price endpoints
+│           ├── ai.py              # /ai/recommendation  /ai/backtest/{symbol}
 │           └── live.py            # WS /api/v1/{broker}/ws/live
 ├── tests/
 │   ├── conftest.py                # Fixtures + MockBrokerAdapter
@@ -286,6 +291,18 @@ Interactive API docs: http://127.0.0.1:8000/docs
 | `GET` | `/api/v1/{broker}/analysis` | Full analysis: P&L, alerts, sector allocation |
 | `GET` | `/api/v1/{broker}/analysis/alerts` | Active alerts (loss/gain thresholds) |
 
+### Market Data
+| Method | Endpoint | Description |
+|---|---|---|
+| `GET` | `/api/v1/market/{symbol}` | Live price for a single instrument (eToro API) |
+| `GET` | `/api/v1/market/bulk?symbols=A,B,C` | Batch live prices for multiple instruments |
+
+### AI Signals
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/v1/{broker}/ai/recommendation` | BUY / SELL / HOLD signal with composite score |
+| `GET` | `/api/v1/{broker}/ai/backtest/{symbol}` | 20-scenario score sweep (backtest analysis) |
+
 ### Live Prices (WebSocket)
 | Method | Endpoint | Description |
 |---|---|---|
@@ -324,6 +341,69 @@ Errors:
   "error": { "code": "BROKER_NOT_FOUND", "message": "Broker 'x' is not registered." }
 }
 ```
+
+---
+
+## AI Signals
+
+The AI signal engine computes a deterministic **BUY / SELL / HOLD** recommendation for any instrument using a four-factor composite score.
+
+### Scoring model
+
+```
+Score = 0.35 × Trend  +  0.25 × Momentum  +  0.20 × Valuation  +  0.20 × Risk
+```
+
+| Factor | Source | What it measures |
+|---|---|---|
+| **Trend** | Unrealised return % (held) or live 24h change % (not held) | Price direction |
+| **Momentum** | Return vs portfolio average | Relative outperformance |
+| **Valuation** | Portfolio weight % | Concentration risk |
+| **Risk** | Return % magnitude | Downside exposure |
+
+Signal thresholds (moderate profile): **BUY ≥ 65 · SELL ≤ 35 · HOLD otherwise**
+
+### Portfolio vs non-portfolio instruments
+
+When the requested symbol **is in your portfolio**, the scorer uses the actual unrealised return and portfolio weight for full context-aware analysis.
+
+When the symbol **is not in your portfolio**, the scorer previously defaulted to `return_pct = 0.0` for every non-held instrument — causing all of them to collapse to the same identical score (43.5 at a typical portfolio average). This is now fixed:
+
+- The recommendation endpoint fetches the instrument's **live 24h price change** from the eToro market data API.
+- That `changePercent` is passed into the scorer as a **market trend proxy** for `return_pct`.
+- Each non-held instrument now receives a **distinct score** driven by its current market movement.
+- The response includes `isPortfolioInstrument: bool` so the frontend can surface a clear notice:
+  > ⚠ Not in your portfolio — score uses live market trend as proxy.
+
+### Recommendation response fields
+
+```json
+{
+  "symbol": "CSCO",
+  "action": "HOLD",
+  "score": 51.4,
+  "confidence": 58,
+  "features": { "trend": 52.5, "momentum": 41.0, "valuation": 60.0, "risk": 71.5 },
+  "featureWeights": { "trend": 0.35, "momentum": 0.25, "valuation": 0.20, "risk": 0.20 },
+  "riskFlags": [],
+  "reasonBullets": ["..."],
+  "invalidationConditions": ["..."],
+  "narrative": "CSCO is tracking a modest positive market trend of +1.0% ...",
+  "isPortfolioInstrument": false,
+  "holdingSnapshot": null,
+  "riskProfile": "moderate",
+  "dataTimestamp": "2026-05-15T10:00:00+00:00",
+  "isStale": false
+}
+```
+
+### Backtest / scenario analysis
+
+`GET /api/v1/{broker}/ai/backtest/{symbol}` sweeps 20 return scenarios from −25 % to +30 % and returns:
+- Per-scenario score and action label
+- Hit-rate % (how many scenarios produce the same action as current)
+- Flip-point info — the return level at which the signal changes
+- Signal zones: SELL / HOLD / BUY bands with their score ranges
 
 ---
 
