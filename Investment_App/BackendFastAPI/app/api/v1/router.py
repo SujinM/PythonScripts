@@ -3,6 +3,7 @@
 from fastapi import APIRouter
 
 from app.api.v1 import (
+    ai,
     analysis,
     auth,
     debug,
@@ -31,3 +32,5 @@ router.include_router(etoro_instruments.router)
 router.include_router(instruments.router)
 router.include_router(market.router)
 router.include_router(sync.router)
+# Phase 2 — AI scoring endpoint
+router.include_router(ai.router)
