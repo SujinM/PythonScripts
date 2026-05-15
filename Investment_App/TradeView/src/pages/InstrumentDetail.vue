@@ -13,6 +13,7 @@ import Badge from '@/components/common/Badge.vue'
 import LoadingSpinner from '@/components/common/LoadingSpinner.vue'
 import CandlestickChart from '@/components/charts/CandlestickChart.vue'
 import LoadingSkeleton from '@/components/common/LoadingSkeleton.vue'
+import BacktestPanel from '@/components/ai/BacktestPanel.vue'
 
 const route     = useRoute()
 const router    = useRouter()
@@ -36,6 +37,15 @@ const broker         = computed(() => portfolio.activeBroker)
 const recommendation = computed(() => recStore.getRecommendation(broker.value, symbol.value))
 const recLoading     = computed(() => recStore.isLoading(broker.value, symbol.value))
 const recError       = computed(() => recStore.getError(broker.value, symbol.value))
+
+// ── Backtest (Phase 3) ───────────────────────────────────────────────────────
+const backtest      = computed(() => recStore.getBacktest(broker.value, symbol.value))
+const btLoading     = computed(() => recStore.isBacktestLoading(broker.value, symbol.value))
+const btError       = computed(() => recStore.getBacktestError(broker.value, symbol.value))
+
+async function fetchBacktest(forceRefresh = false) {
+  await recStore.fetchBacktest(broker.value, symbol.value, riskProfile.value, forceRefresh)
+}
 
 const actionClass = computed(() => {
   if (!recommendation.value) return ''
@@ -64,7 +74,10 @@ async function fetchRecommendation(forceRefresh = false) {
   await recStore.fetchRecommendation(broker.value, symbol.value, riskProfile.value, undefined, forceRefresh)
 }
 
-watch(riskProfile, () => fetchRecommendation(true))
+watch(riskProfile, () => {
+  fetchRecommendation(true)
+  fetchBacktest(true)
+})
 
 onMounted(async () => {
   await Promise.all([
@@ -72,6 +85,7 @@ onMounted(async () => {
     market.fetchMarketData(symbol.value),
     market.fetchPriceHistory(symbol.value, 90),
     fetchRecommendation(),
+    fetchBacktest(),
   ])
 })
 
@@ -328,6 +342,12 @@ const loading = computed(() => instStore.loading || market.loading)
           </div>
         </div>
 
+        <!-- Phase 3: Natural language narrative -->
+        <div class="mb-4 p-3 rounded-xl border text-sm leading-relaxed"
+             style="border-color: var(--surface-border); background: var(--surface-secondary); color: var(--text-primary);">
+          {{ recommendation.narrative }}
+        </div>
+
         <!-- Why this signal? reason bullets -->
         <div class="mb-4">
           <p class="text-xs uppercase tracking-wide mb-2 font-semibold" style="color: var(--text-muted);">Why this signal?</p>
@@ -403,5 +423,14 @@ const loading = computed(() => instStore.loading || market.loading)
         No recommendation available
       </div>
     </div>
+
+    <!-- Phase 3: Signal Analysis / Backtest panel -->
+    <BacktestPanel
+      :backtest="backtest"
+      :loading="btLoading"
+      :error="btError"
+      :symbol="symbol"
+      @retry="fetchBacktest(true)"
+    />
   </div>
 </template>

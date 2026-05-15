@@ -95,6 +95,7 @@ class RecommendationResult:
     risk_flags:           list[str]
     reason_bullets:       list[str]
     invalidation_conditions: list[str]
+    narrative:            str             # Natural-language explanation paragraph
     data_timestamp:       str
     is_stale:             bool
     risk_profile:         str
@@ -392,6 +393,93 @@ def build_risk_flags(
     return flags
 
 
+# ── Narrative generator ───────────────────────────────────────────────────────
+
+def generate_narrative(
+    symbol: str,
+    action: Action,
+    score: float,
+    confidence: int,
+    ctx: HoldingContext,
+    features: ScoreFeatures,
+) -> str:
+    """
+    Produce a concise 2-4 sentence plain-English explanation of the signal.
+
+    Template-based — deterministic, no LLM involved.
+    """
+    action_verb = {
+        "BUY":  "indicates a buying opportunity",
+        "SELL": "suggests reducing or exiting the position",
+        "HOLD": "recommends maintaining the current position",
+    }[action]
+
+    confidence_qualifier = (
+        "with strong conviction"
+        if confidence >= 70
+        else (
+            "with moderate confidence"
+            if confidence >= 40
+            else "with low confidence — the signal is near a decision boundary"
+        )
+    )
+
+    trend_desc = (
+        "a strong positive price trend"
+        if features.trend >= 70
+        else (
+            "moderate positive momentum"
+            if features.trend >= 55
+            else (
+                "near-neutral price movement"
+                if features.trend >= 45
+                else "negative price trend under pressure"
+            )
+        )
+    )
+
+    weight_clause = (
+        f"representing {ctx.portfolio_weight_pct:.1f}% of the portfolio"
+        if ctx.portfolio_weight_pct > 0
+        else "not currently held in the portfolio"
+    )
+
+    parts: list[str] = [
+        f"The model scores {symbol} at {score:.1f}/100 and {action_verb} {confidence_qualifier}.",
+        f"The primary driver is {trend_desc} "
+        f"({ctx.return_pct:+.2f}% unrealised return), "
+        f"with the position {weight_clause}.",
+    ]
+
+    # Momentum sentence
+    delta = ctx.return_pct - ctx.avg_portfolio_return
+    if ctx.avg_portfolio_return != 0 or ctx.total_holdings > 1:
+        if abs(delta) < 1.0:
+            parts.append(
+                f"{symbol} is performing close to the portfolio average "
+                f"({ctx.avg_portfolio_return:+.2f}%), giving a neutral momentum signal."
+            )
+        elif delta > 0:
+            parts.append(
+                f"The position is outperforming the portfolio average by {delta:.1f}%, "
+                "which strengthens the signal."
+            )
+        else:
+            parts.append(
+                f"The position is underperforming the portfolio average by {abs(delta):.1f}%, "
+                "which weighs against a more bullish outcome."
+            )
+
+    # Non-tradable warning
+    if not ctx.is_tradable:
+        parts.append(
+            f"{symbol} is flagged as non-tradable in the instrument catalogue; "
+            "no execution action is possible until this restriction is lifted."
+        )
+
+    return "  ".join(parts)
+
+
 # ── Main entry point ──────────────────────────────────────────────────────────
 
 def compute_recommendation(
@@ -501,6 +589,7 @@ def compute_recommendation(
         invalidation_conditions=build_invalidation_conditions(
             symbol, ctx, action, risk_profile
         ),
+        narrative=generate_narrative(symbol, action, score, confidence, ctx, features),
         data_timestamp=ts_str,
         is_stale=is_stale,
         risk_profile=risk_profile,
