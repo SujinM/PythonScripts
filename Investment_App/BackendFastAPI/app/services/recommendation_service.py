@@ -100,6 +100,7 @@ class RecommendationResult:
     is_stale:             bool
     risk_profile:         str
     holding_snapshot:     Optional[dict]  # Abbreviated holding data for audit
+    is_portfolio_instrument: bool         # False when symbol not in current holdings
 
 
 # ── Individual feature scorers (pure functions) ────────────────────────────────
@@ -489,6 +490,7 @@ def compute_recommendation(
     is_tradable: bool = True,
     data_timestamp: Optional[datetime] = None,
     cache_ttl_seconds: int = 300,
+    market_change_pct: Optional[float] = None,
 ) -> RecommendationResult:
     """
     Compute a deterministic recommendation for *symbol* given the full
@@ -505,6 +507,10 @@ def compute_recommendation(
     is_tradable       : From instrument catalogue; defaults True when unknown.
     data_timestamp    : UTC datetime of the holdings snapshot (for stale check).
     cache_ttl_seconds : Holdings cache TTL — used to compute staleness.
+    market_change_pct : Live 24h % change from market data API.  Used as the
+                        trend signal when the symbol is not in the portfolio,
+                        so non-held instruments get distinct scores instead of
+                        all collapsing to the same neutral default.
     """
     now = datetime.now(timezone.utc)
     ts_str = (data_timestamp or now).isoformat()
@@ -536,11 +542,15 @@ def compute_recommendation(
             "current_value":        round(target.current_value, 2),
             "portfolio_weight_pct": weight_pct,
         }
+        is_portfolio_instrument = True
     else:
-        # Not in portfolio — use neutral defaults
-        return_pct = 0.0
+        # Not in portfolio — use market_change_pct as trend proxy if available,
+        # otherwise fall back to 0.0 (neutral).  This prevents all non-held
+        # instruments from collapsing to an identical score.
+        return_pct = market_change_pct if market_change_pct is not None else 0.0
         weight_pct = 0.0
         holding_snap = None
+        is_portfolio_instrument = False
 
     ctx = HoldingContext(
         return_pct=return_pct,
@@ -594,4 +604,5 @@ def compute_recommendation(
         is_stale=is_stale,
         risk_profile=risk_profile,
         holding_snapshot=holding_snap,
+        is_portfolio_instrument=is_portfolio_instrument,
     )

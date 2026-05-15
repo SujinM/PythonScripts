@@ -153,10 +153,14 @@ const loading = computed(() => instStore.loading || market.loading)
             <p v-if="marketData" class="text-3xl font-bold stat-value" style="color: var(--text-primary);">
               {{ formatPrice(marketData.price, instrument.currency) }}
             </p>
-            <div v-if="marketData" :class="['flex items-center gap-2 text-sm font-semibold', marketData.changePercent >= 0 ? 'text-profit' : 'text-loss']">
+            <div v-if="marketData && marketData.changePercent !== 0" :class="['flex items-center gap-2 text-sm font-semibold', marketData.changePercent >= 0 ? 'text-profit' : 'text-loss']">
               <span>{{ marketData.changePercent >= 0 ? '▲' : '▼' }}</span>
               <span>{{ formatChange(marketData.changePercent) }}</span>
               <span class="text-xs font-normal" style="color: var(--text-muted);">({{ formatPrice(Math.abs(marketData.change)) }})</span>
+            </div>
+            <div v-else-if="marketData" class="flex items-center gap-1 text-sm" style="color: var(--text-muted);">
+              <span>▲</span><span>0.00%</span>
+              <span class="text-xs">($0.00)</span>
             </div>
 
             <!-- Watchlist toggle -->
@@ -176,11 +180,15 @@ const loading = computed(() => instStore.loading || market.loading)
         <div v-if="marketData" class="grid grid-cols-2 sm:grid-cols-4 gap-4 mt-5 pt-5 border-t" style="border-color: var(--surface-border);">
           <div>
             <p class="text-xs uppercase tracking-wide mb-1" style="color: var(--text-muted);">24h High</p>
-            <p class="text-sm font-semibold stat-value" style="color: var(--text-primary);">{{ formatPrice(marketData.high24h) }}</p>
+            <p class="text-sm font-semibold stat-value" style="color: var(--text-primary);">
+              {{ marketData.high24h !== marketData.price ? formatPrice(marketData.high24h) : '—' }}
+            </p>
           </div>
           <div>
             <p class="text-xs uppercase tracking-wide mb-1" style="color: var(--text-muted);">24h Low</p>
-            <p class="text-sm font-semibold stat-value" style="color: var(--text-primary);">{{ formatPrice(marketData.low24h) }}</p>
+            <p class="text-sm font-semibold stat-value" style="color: var(--text-primary);">
+              {{ marketData.low24h !== marketData.price ? formatPrice(marketData.low24h) : '—' }}
+            </p>
           </div>
           <div>
             <p class="text-xs uppercase tracking-wide mb-1" style="color: var(--text-muted);">Volume</p>
@@ -296,6 +304,20 @@ const loading = computed(() => instStore.loading || market.loading)
 
       <!-- Result -->
       <template v-else-if="recommendation">
+
+        <!-- Not-in-portfolio notice -->
+        <div
+          v-if="!recommendation.isPortfolioInstrument"
+          class="flex items-start gap-2 p-3 rounded-xl text-xs mb-4"
+          style="border: 1px solid rgba(245,158,11,0.3); background: rgba(245,158,11,0.05); color: var(--text-muted);"
+        >
+          <span class="mt-0.5 shrink-0">⚠</span>
+          <span>
+            <strong style="color: rgba(245,158,11,0.9);">Not in your portfolio.</strong>
+            Score uses the instrument's live market trend as a proxy.
+            Add it to your portfolio for full context-aware analysis.
+          </span>
+        </div>
 
         <!-- Action + composite score bar -->
         <div class="flex items-center gap-4 mb-5">

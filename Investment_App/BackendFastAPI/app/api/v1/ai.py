@@ -35,6 +35,7 @@ from app.services.recommendation_service import (
     RiskProfile,
     compute_recommendation,
 )
+from app.services import etoro_market_service
 
 router = APIRouter(tags=["ai"])
 
@@ -73,6 +74,7 @@ class RecommendationOut(BaseModel):
     is_stale:                bool
     risk_profile:            str
     holding_snapshot:        Optional[dict]
+    is_portfolio_instrument: bool            # False = not held; score uses market trend proxy
 
 
 class ScenarioPointOut(BaseModel):
@@ -175,7 +177,13 @@ def get_recommendation(
         if data_timestamp and data_timestamp.tzinfo is None:
             data_timestamp = data_timestamp.replace(tzinfo=timezone.utc)
 
-    # ── 3. Compute recommendation ─────────────────────────────────────────────
+    # ── 3. Market data — changePercent used for non-held instrument trend signal ──────
+    market_data = etoro_market_service.fetch_market_data(symbol, db)
+    market_change_pct: Optional[float] = (
+        market_data.get("changePercent") if market_data else None
+    )
+
+    # ── 4. Compute recommendation ──────────────────────────────────────────────────────
     result = compute_recommendation(
         symbol=symbol,
         holdings=holdings,
@@ -183,9 +191,10 @@ def get_recommendation(
         is_tradable=is_tradable,
         data_timestamp=data_timestamp,
         cache_ttl_seconds=settings.cache_ttl_seconds,
+        market_change_pct=market_change_pct,
     )
 
-    # ── 4. Build response ─────────────────────────────────────────────────────
+    # ── 5. Build response ───────────────────────────────────────────────────────
     out = RecommendationOut(
         symbol=result.symbol,
         action=result.action,
@@ -201,6 +210,7 @@ def get_recommendation(
         is_stale=result.is_stale,
         risk_profile=result.risk_profile,
         holding_snapshot=result.holding_snapshot,
+        is_portfolio_instrument=result.is_portfolio_instrument,
     )
 
     return APIResponse(data=out)

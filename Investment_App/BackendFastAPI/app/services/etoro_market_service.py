@@ -129,25 +129,31 @@ def fetch_market_data(symbol: str, db: Session) -> Optional[dict]:
     except Exception:
         meta = {}
 
-    # Build response — use whatever the API provides, fall back gracefully
-    change         = float(rate.get("change")        or meta.get("change")        or 0.0)
-    change_pct     = float(rate.get("percentage")    or meta.get("percentage")    or
-                           rate.get("changePercent") or meta.get("changePercent") or 0.0)
-    volume         = float(rate.get("volume")        or meta.get("volume")        or 0.0)
-    high24h        = float(rate.get("high")          or meta.get("high")          or price)
-    low24h         = float(rate.get("low")           or meta.get("low")           or price)
-    open_price     = float(rate.get("open")          or meta.get("open")          or 0.0) or None
-    prev_close     = float(rate.get("prevClose")     or meta.get("prevClose")     or
-                           rate.get("previousClose") or meta.get("previousClose") or 0.0) or None
+    # Build response — use whatever the API provides; fields absent from the
+    # eToro rates endpoint (change, high, low, volume) are returned as None
+    # so the frontend shows "—" rather than a misleading fallback value.
+    def _f(val) -> Optional[float]:
+        """Return float if truthy, else None."""
+        return float(val) if val else None
+
+    change         = _f(rate.get("change")        or meta.get("change"))
+    change_pct     = _f(rate.get("percentage")    or meta.get("percentage")    or
+                        rate.get("changePercent") or meta.get("changePercent"))
+    volume         = _f(rate.get("volume")        or meta.get("volume"))
+    high24h        = _f(rate.get("high")          or meta.get("high"))
+    low24h         = _f(rate.get("low")           or meta.get("low"))
+    open_price     = _f(rate.get("open")          or meta.get("open"))
+    prev_close     = _f(rate.get("prevClose")     or meta.get("prevClose")     or
+                        rate.get("previousClose") or meta.get("previousClose"))
 
     return {
         "symbol":        symbol,
         "price":         price,
-        "change":        change,
-        "changePercent": change_pct,
-        "volume":        volume,
-        "high24h":       high24h,
-        "low24h":        low24h,
+        "change":        change     or 0.0,
+        "changePercent": change_pct or 0.0,
+        "volume":        volume     or 0.0,
+        "high24h":       high24h    or price,   # MarketData schema requires float; use price if unavailable
+        "low24h":        low24h     or price,   # same
         "marketCap":     None,
         "open":          open_price,
         "previousClose": prev_close,

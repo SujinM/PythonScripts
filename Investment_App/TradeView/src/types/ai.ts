@@ -32,6 +32,7 @@ export interface Recommendation {
   isStale:                 boolean
   riskProfile:             RiskProfile
   holdingSnapshot:         HoldingSnapshot | null
+  isPortfolioInstrument:   boolean         // false = not held; score uses market trend proxy
 }
 
 export interface RecommendationRequest {
