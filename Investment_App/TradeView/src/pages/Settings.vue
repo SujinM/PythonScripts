@@ -1,9 +1,12 @@
 <script setup lang="ts">
+import { ref, onMounted } from 'vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useNotification } from '@/composables/useNotification'
 import ThemeToggle from '@/components/common/ThemeToggle.vue'
 import Badge from '@/components/common/Badge.vue'
+import { upstoxAuthApi } from '@/api/upstoxAuth'
+
 const REFRESH_INTERVAL_OPTIONS = [
   { label: '15 seconds', value: 15_000 },
   { label: '30 seconds', value: 30_000 },
@@ -19,6 +22,67 @@ function removeFromWatchlist(symbol: string) {
   settings.removeFromWatchlist(symbol)
   notify.info(`Removed ${symbol} from watchlist`)
 }
+
+// ── Upstox authentication ─────────────────────────────────────────────────────
+
+const upstoxStatus = ref<{ configured: boolean; token_preview: string | null }>({
+  configured: false,
+  token_preview: null,
+})
+const upstoxAuthUrl  = ref<string | null>(null)
+const upstoxCode     = ref('')
+const upstoxLoading  = ref(false)
+const upstoxStep     = ref<'idle' | 'awaiting-code'>('idle')
+
+async function fetchUpstoxStatus() {
+  try {
+    upstoxStatus.value = await upstoxAuthApi.getStatus()
+  } catch {
+    // Backend may not be running — ignore silently
+  }
+}
+
+async function startUpstoxAuth() {
+  upstoxLoading.value = true
+  try {
+    const { url } = await upstoxAuthApi.getAuthUrl()
+    upstoxAuthUrl.value = url
+    window.open(url, '_blank', 'noopener,noreferrer')
+    upstoxStep.value = 'awaiting-code'
+  } catch (err: any) {
+    notify.error(err?.response?.data?.detail ?? 'Failed to get Upstox auth URL')
+  } finally {
+    upstoxLoading.value = false
+  }
+}
+
+async function submitUpstoxCode() {
+  if (!upstoxCode.value.trim()) {
+    notify.error('Please paste the authorization code first.')
+    return
+  }
+  upstoxLoading.value = true
+  try {
+    const result = await upstoxAuthApi.submitCode(upstoxCode.value.trim())
+    notify.success(result.message)
+    upstoxStatus.value = { configured: true, token_preview: result.token_preview }
+    upstoxStep.value = 'idle'
+    upstoxCode.value = ''
+    upstoxAuthUrl.value = null
+  } catch (err: any) {
+    notify.error(err?.response?.data?.detail ?? 'Token exchange failed')
+  } finally {
+    upstoxLoading.value = false
+  }
+}
+
+function cancelUpstoxAuth() {
+  upstoxStep.value = 'idle'
+  upstoxCode.value = ''
+  upstoxAuthUrl.value = null
+}
+
+onMounted(fetchUpstoxStatus)
 </script>
 
 <template>
@@ -102,15 +166,92 @@ function removeFromWatchlist(symbol: string) {
       </button>
     </div>
 
+    <!-- Upstox Authentication -->
+    <div class="card p-5 space-y-4">
+      <div class="flex items-center justify-between">
+        <h3 class="text-sm font-semibold" style="color: var(--text-primary);">Upstox Authentication</h3>
+        <span
+          class="text-xs px-2 py-0.5 rounded-full font-medium"
+          :class="upstoxStatus.configured
+            ? 'bg-green-500/15 text-green-400'
+            : 'bg-yellow-500/15 text-yellow-400'"
+        >
+          {{ upstoxStatus.configured ? 'Connected' : 'Not connected' }}
+        </span>
+      </div>
+
+      <!-- Status row -->
+      <div v-if="upstoxStatus.configured" class="flex items-center gap-2 text-xs" style="color: var(--text-muted);">
+        <svg class="w-3.5 h-3.5 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" />
+        </svg>
+        Access token active
+        <span class="font-mono text-brand-400">{{ upstoxStatus.token_preview }}</span>
+      </div>
+      <p v-else class="text-xs" style="color: var(--text-muted);">
+        Connect your Upstox account to enable live portfolio data.
+      </p>
+
+      <!-- Step 1: trigger OAuth -->
+      <div v-if="upstoxStep === 'idle'" class="flex gap-2">
+        <button
+          class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5"
+          :disabled="upstoxLoading"
+          @click="startUpstoxAuth"
+        >
+          <svg v-if="upstoxLoading" class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+          </svg>
+          {{ upstoxStatus.configured ? 'Re-authenticate' : 'Connect Upstox' }}
+        </button>
+      </div>
+
+      <!-- Step 2: paste the code -->
+      <div v-if="upstoxStep === 'awaiting-code'" class="space-y-3">
+        <p class="text-xs" style="color: var(--text-muted);">
+          A browser tab opened with the Upstox login page. After authorising, copy the
+          <span class="font-mono text-brand-400">code</span> from the redirect URL and paste it below.
+        </p>
+        <div v-if="upstoxAuthUrl" class="text-xs break-all" style="color: var(--text-muted);">
+          <span class="font-medium" style="color: var(--text-primary);">Auth URL: </span>
+          <a :href="upstoxAuthUrl" target="_blank" rel="noopener noreferrer" class="text-brand-400 underline">
+            Open again
+          </a>
+        </div>
+        <input
+          v-model="upstoxCode"
+          type="text"
+          class="input text-xs w-full font-mono"
+          placeholder="Paste authorization code here…"
+          @keyup.enter="submitUpstoxCode"
+        />
+        <div class="flex gap-2">
+          <button
+            class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5"
+            :disabled="upstoxLoading || !upstoxCode.trim()"
+            @click="submitUpstoxCode"
+          >
+            <svg v-if="upstoxLoading" class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+            </svg>
+            Submit Code
+          </button>
+          <button class="btn-ghost text-xs" @click="cancelUpstoxAuth">Cancel</button>
+        </div>
+      </div>
+    </div>
+
     <!-- Account -->
     <div class="card p-5 space-y-4">
       <h3 class="text-sm font-semibold" style="color: var(--text-primary);">Account</h3>
       <div class="flex items-center gap-3">
         <div class="w-10 h-10 rounded-full bg-brand-500/20 flex items-center justify-center text-brand-400 font-bold">
-          {{ auth.user?.name?.charAt(0) ?? 'U' }}
+          {{ auth.user?.username?.charAt(0)?.toUpperCase() ?? 'U' }}
         </div>
         <div>
-          <p class="text-sm font-medium" style="color: var(--text-primary);">{{ auth.user?.name ?? 'Unknown' }}</p>
+          <p class="text-sm font-medium" style="color: var(--text-primary);">{{ auth.user?.firstName && auth.user?.lastName ? `${auth.user.firstName} ${auth.user.lastName}` : auth.user?.username ?? 'Unknown' }}</p>
           <p class="text-xs" style="color: var(--text-muted);">{{ auth.user?.email }}</p>
         </div>
         <Badge :value="auth.user?.role ?? 'user'" type="assetType" class="ml-auto" />
