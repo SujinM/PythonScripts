@@ -9,7 +9,7 @@ from __future__ import annotations
 import uuid
 from datetime import datetime, timezone
 
-from sqlalchemy import Column, DateTime, Float, ForeignKey, String, Text
+from sqlalchemy import Boolean, Column, DateTime, Float, ForeignKey, Integer, String, Text
 from sqlalchemy.orm import relationship
 
 from app.db.base import Base
@@ -55,3 +55,37 @@ class PortfolioHolding(Base):
     average_price = Column(Float, nullable=False, default=0.0)
 
     portfolio = relationship("Portfolio", back_populates="holdings")
+
+
+# ---------------------------------------------------------------------------
+# eToro instrument catalogue (populated by the sync script / API endpoint)
+# ---------------------------------------------------------------------------
+
+class EtoroInstrument(Base):
+    """
+    Mirror of the eToro instrument catalogue fetched from:
+      https://api.etorostatic.com/sapi/instrumentsmetadata/V1.1/instruments
+
+    InstrumentTypeID mapping
+    ------------------------
+      1 = Currencies / Forex
+      2 = Commodities
+      3 = Indices
+      4 = Stocks
+      5 = ETFs
+      6 = Crypto
+    """
+
+    __tablename__ = "etoro_instruments"
+
+    instrument_id       = Column(Integer, primary_key=True)          # InstrumentID
+    symbol              = Column(String(50),  nullable=False, index=True)  # SymbolFull
+    display_name        = Column(String(200), nullable=False, index=True)  # InstrumentDisplayName
+    instrument_type_id  = Column(Integer,  nullable=True)            # InstrumentTypeID
+    exchange_id         = Column(Integer,  nullable=True)            # ExchangeID
+    price_source        = Column(String(50),  nullable=True)         # PriceSource
+    has_expiration_date = Column(Boolean,  default=False)            # HasExpirationDate
+    is_internal         = Column(Boolean,  default=False)            # IsInternalInstrument
+    distribution_type   = Column(Integer,  nullable=True)            # DistributionType
+    image_url           = Column(String(500), nullable=True)         # best-fit avatar URL
+    synced_at           = Column(DateTime(timezone=True), nullable=True)

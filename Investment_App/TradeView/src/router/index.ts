@@ -83,6 +83,12 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/Settings.vue'),
         meta: { title: 'Settings' },
       },
+      {
+        path: 'etoro-instruments',
+        name: 'etoro-instruments',
+        component: () => import('@/pages/EtoroInstruments.vue'),
+        meta: { title: 'eToro Markets' },
+      },
     ],
   },
 
