@@ -33,10 +33,10 @@ _ETORO_API_URL = "https://api.etorostatic.com/sapi/instrumentsmetadata/V1.1/inst
 _INSTRUMENT_TYPES: dict[int, str] = {
     1: "Forex",
     2: "Commodities",
-    3: "Indices",
-    4: "Stocks",
-    5: "ETFs",
-    6: "Crypto",
+    4: "Indices",
+    5: "Stocks",
+    6: "ETFs",
+    10: "Crypto",
 }
 
 _DBDep = Annotated[Session, Depends(get_db)]

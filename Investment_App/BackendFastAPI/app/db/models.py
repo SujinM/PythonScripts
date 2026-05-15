@@ -68,12 +68,12 @@ class EtoroInstrument(Base):
 
     InstrumentTypeID mapping
     ------------------------
-      1 = Currencies / Forex
-      2 = Commodities
-      3 = Indices
-      4 = Stocks
-      5 = ETFs
-      6 = Crypto
+      1  = Currencies / Forex
+      2  = Commodities
+      4  = Indices
+      5  = Stocks
+      6  = ETFs
+      10 = Crypto
     """
 
     __tablename__ = "etoro_instruments"

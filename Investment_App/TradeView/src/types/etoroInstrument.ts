@@ -37,10 +37,10 @@ export interface EtoroInstrumentFilters {
 }
 
 export const ETORO_INSTRUMENT_TYPES: Record<number, string> = {
-  1: 'Forex',
-  2: 'Commodities',
-  3: 'Indices',
-  4: 'Stocks',
-  5: 'ETFs',
-  6: 'Crypto',
+  1:  'Forex',
+  2:  'Commodities',
+  4:  'Indices',
+  5:  'Stocks',
+  6:  'ETFs',
+  10: 'Crypto',
 }

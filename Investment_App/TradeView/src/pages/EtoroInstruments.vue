@@ -120,12 +120,12 @@ function formatNumber(n: number) {
 
 function typeChipStyle(typeId: number | null | undefined): Record<string, string> {
   const map: Record<number, [string, string]> = {
-    1: ['rgba(16,185,129,0.15)',  '#10B981'],  // Forex     — emerald
-    2: ['rgba(245,158,11,0.15)',  '#F59E0B'],  // Commod    — amber
-    3: ['rgba(99,102,241,0.15)',  '#818CF8'],  // Indices   — indigo
-    4: ['rgba(59,130,246,0.15)',  '#60A5FA'],  // Stocks    — blue
-    5: ['rgba(168,85,247,0.15)',  '#C084FC'],  // ETFs      — purple
-    6: ['rgba(234,179,8,0.15)',   '#EAB308'],  // Crypto    — yellow
+    1:  ['rgba(16,185,129,0.15)',  '#10B981'],  // Forex     — emerald
+    2:  ['rgba(245,158,11,0.15)',  '#F59E0B'],  // Commodities — amber
+    4:  ['rgba(99,102,241,0.15)',  '#818CF8'],  // Indices   — indigo
+    5:  ['rgba(59,130,246,0.15)',  '#60A5FA'],  // Stocks    — blue
+    6:  ['rgba(168,85,247,0.15)',  '#C084FC'],  // ETFs      — purple
+    10: ['rgba(234,179,8,0.15)',   '#EAB308'],  // Crypto    — yellow
   }
   const [bg, color] = map[typeId ?? 0] ?? ['rgba(107,114,128,0.15)', '#9CA3AF']
   return { background: bg, color }
