@@ -152,11 +152,89 @@ pip --version
 | `UPSTOX_API_KEY` | _(empty)_ | Upstox API key |
 | `UPSTOX_API_SECRET` | _(empty)_ | Upstox API secret |
 | `UPSTOX_ACCESS_TOKEN` | _(empty)_ | OAuth2 access token (required to call Upstox) |
-| `UPSTOX_REDIRECT_URI` | `https://127.0.0.1` | OAuth2 redirect URI |
+| `UPSTOX_REDIRECT_URI` | `https://127.0.0.1` | OAuth2 redirect URI — **must match** the URI registered in your Upstox Developer App. Set to `http://localhost:8000/callback` for local development |
+| `FRONTEND_URL` | `http://localhost:3000` | TradeView frontend URL — used to build the post-auth redirect back to the Settings page |
 | `ETORO_API_KEY` | _(empty)_ | eToro Public API Key (`x-api-key` header) |
 | `ETORO_USER_KEY` | _(empty)_ | eToro User Key (`x-user-key` header) |
 | `ETORO_BASE_URL` | `https://public-api.etoro.com` | eToro REST API base URL (portfolio/holdings) |
 | `REDIS_URL` | _(empty)_ | Optional Redis URL (in-memory used if blank) |
+
+---
+
+## Upstox Authentication
+
+The backend implements a full **OAuth2 Authorization Code** flow so the TradeView dashboard can connect a user's Upstox account without any manual copy-paste.
+
+### Prerequisites
+
+1. Log in to the [Upstox Developer Portal](https://developer.upstox.com/) and create (or open) your app.
+2. Set the **Redirect URL** field to:
+   ```
+   http://localhost:8000/callback
+   ```
+3. Copy your **API Key** and **API Secret** into `.env`:
+   ```env
+   UPSTOX_API_KEY=<your-api-key>
+   UPSTOX_API_SECRET=<your-api-secret>
+   UPSTOX_REDIRECT_URI=http://localhost:8000/callback
+   FRONTEND_URL=http://localhost:3000
+   ```
+
+### How the flow works
+
+```
+User clicks "Connect Upstox" in Settings
+         │
+         ▼
+GET /api/v1/upstox/auth/url          ← frontend asks backend for the login URL
+         │  returns { url: "https://api.upstox.com/v2/login/..." }
+         ▼
+window.location.href = url           ← browser navigates to Upstox login page
+         │
+         │  (user logs in)
+         ▼
+Upstox redirects →  http://localhost:8000/callback?code=<auth-code>
+         │
+         ▼
+GET /callback  (public endpoint — no JWT needed)
+  ├─ exchanges auth code for access token  (POST to Upstox token URL)
+  ├─ writes UPSTOX_ACCESS_TOKEN to BackendFastAPI/.env
+  ├─ writes UPSTOX_ACCESS_TOKEN to upstox/.env
+  ├─ clears settings cache so new token is live immediately
+  └─ RedirectResponse → http://localhost:3000/settings?upstox_auth=success
+         │
+         ▼
+Settings page reads ?upstox_auth=success
+  ├─ shows success notification
+  ├─ removes query param from URL
+  └─ fetches /api/v1/upstox/auth/status → badge changes to "Connected"
+```
+
+If the user denies access or an error occurs, Upstox sends `?error=...` and the user is redirected to `/settings?upstox_auth=error&message=<reason>` where the dashboard shows the error notification.
+
+### Endpoints reference
+
+| Endpoint | Auth | Purpose |
+|---|---|---|
+| `GET /callback` | None (public) | Receives Upstox redirect, exchanges code, saves token |
+| `GET /api/v1/upstox/auth/url` | Bearer JWT | Returns the authorization URL to open in the browser |
+| `GET /api/v1/upstox/auth/status` | Bearer JWT | Returns `{ configured: bool, token_preview: "eyJ0eXA…" }` |
+| `POST /api/v1/upstox/auth/callback` | Bearer JWT | Manual code exchange fallback |
+
+### Token persistence
+
+The access token is written to two files on the server:
+
+| File | Purpose |
+|---|---|
+| `BackendFastAPI/.env` → `UPSTOX_ACCESS_TOKEN` | Used by the FastAPI portfolio endpoints |
+| `upstox/.env` → `UPSTOX_ACCESS_TOKEN` | Used by the `upstox_app` CLI tool |
+
+After writing, `get_settings.cache_clear()` is called so every subsequent API call immediately uses the new token without a server restart.
+
+### Re-authentication
+
+Upstox access tokens expire daily (at midnight IST). Simply click **Re-authenticate** in the dashboard Settings to repeat the flow and get a fresh token.
 
 ---
 
@@ -184,6 +262,14 @@ Interactive API docs: http://127.0.0.1:8000/docs
 |---|---|---|
 | `GET` | `/health` | Health check |
 | `GET` | `/api/v1/brokers` | List all registered brokers |
+
+### Upstox Authentication
+| Method | Endpoint | Auth | Description |
+|---|---|---|---|
+| `GET` | `/callback` | Public | OAuth2 redirect handler — Upstox calls this automatically after login |
+| `GET` | `/api/v1/upstox/auth/url` | Bearer JWT | Returns the Upstox OAuth2 login URL |
+| `POST` | `/api/v1/upstox/auth/callback` | Bearer JWT | Manual code exchange (fallback) |
+| `GET` | `/api/v1/upstox/auth/status` | Bearer JWT | Whether an access token is currently configured |
 
 ### Portfolio
 | Method | Endpoint | Description |

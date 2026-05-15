@@ -49,6 +49,9 @@ class Settings(BaseSettings):
     # Optional Redis
     redis_url: str = ""
 
+    # Frontend URL — used to build redirect URLs after OAuth2 callbacks
+    frontend_url: str = "http://localhost:3000"
+
     # ── Auth / JWT ────────────────────────────────────────────────────────
     # Set JWT_SECRET in your .env — never use the default in production
     jwt_secret: str = "dev-only-secret-change-in-production"

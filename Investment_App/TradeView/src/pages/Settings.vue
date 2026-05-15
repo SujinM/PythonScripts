@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, onMounted } from 'vue'
+import { useRoute, useRouter } from 'vue-router'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAuthStore } from '@/stores/authStore'
 import { useNotification } from '@/composables/useNotification'
@@ -17,6 +18,8 @@ const REFRESH_INTERVAL_OPTIONS = [
 const settings = useSettingsStore()
 const auth     = useAuthStore()
 const notify   = useNotification()
+const route    = useRoute()
+const router   = useRouter()
 
 function removeFromWatchlist(symbol: string) {
   settings.removeFromWatchlist(symbol)
@@ -25,14 +28,11 @@ function removeFromWatchlist(symbol: string) {
 
 // ── Upstox authentication ─────────────────────────────────────────────────────
 
-const upstoxStatus = ref<{ configured: boolean; token_preview: string | null }>({
+const upstoxStatus  = ref<{ configured: boolean; token_preview: string | null }>({
   configured: false,
   token_preview: null,
 })
-const upstoxAuthUrl  = ref<string | null>(null)
-const upstoxCode     = ref('')
-const upstoxLoading  = ref(false)
-const upstoxStep     = ref<'idle' | 'awaiting-code'>('idle')
+const upstoxLoading = ref(false)
 
 async function fetchUpstoxStatus() {
   try {
@@ -42,47 +42,39 @@ async function fetchUpstoxStatus() {
   }
 }
 
+/**
+ * Kick off the OAuth2 flow by navigating the current tab to the Upstox login page.
+ * Upstox will redirect back to http://localhost:8000/callback?code=...
+ * The backend exchanges the code and bounces the browser to
+ * /settings?upstox_auth=success (or ?upstox_auth=error).
+ */
 async function startUpstoxAuth() {
   upstoxLoading.value = true
   try {
     const { url } = await upstoxAuthApi.getAuthUrl()
-    upstoxAuthUrl.value = url
-    window.open(url, '_blank', 'noopener,noreferrer')
-    upstoxStep.value = 'awaiting-code'
+    // Navigate current tab — the OAuth2 redirect loop brings us back here
+    window.location.href = url
   } catch (err: any) {
     notify.error(err?.response?.data?.detail ?? 'Failed to get Upstox auth URL')
-  } finally {
     upstoxLoading.value = false
   }
 }
 
-async function submitUpstoxCode() {
-  if (!upstoxCode.value.trim()) {
-    notify.error('Please paste the authorization code first.')
-    return
+onMounted(async () => {
+  // Handle the result of the OAuth2 redirect flow
+  const authResult = route.query.upstox_auth as string | undefined
+  if (authResult === 'success') {
+    notify.success('Upstox connected successfully!')
+    // Remove query params from URL without triggering a navigation
+    router.replace({ path: '/settings' })
+  } else if (authResult === 'error') {
+    const msg = (route.query.message as string | undefined) ?? 'Upstox authentication failed'
+    notify.error(msg)
+    router.replace({ path: '/settings' })
   }
-  upstoxLoading.value = true
-  try {
-    const result = await upstoxAuthApi.submitCode(upstoxCode.value.trim())
-    notify.success(result.message)
-    upstoxStatus.value = { configured: true, token_preview: result.token_preview }
-    upstoxStep.value = 'idle'
-    upstoxCode.value = ''
-    upstoxAuthUrl.value = null
-  } catch (err: any) {
-    notify.error(err?.response?.data?.detail ?? 'Token exchange failed')
-  } finally {
-    upstoxLoading.value = false
-  }
-}
 
-function cancelUpstoxAuth() {
-  upstoxStep.value = 'idle'
-  upstoxCode.value = ''
-  upstoxAuthUrl.value = null
-}
-
-onMounted(fetchUpstoxStatus)
+  await fetchUpstoxStatus()
+})
 </script>
 
 <template>
@@ -190,57 +182,20 @@ onMounted(fetchUpstoxStatus)
       </div>
       <p v-else class="text-xs" style="color: var(--text-muted);">
         Connect your Upstox account to enable live portfolio data.
+        You will be redirected to the Upstox login page and returned here automatically.
       </p>
 
-      <!-- Step 1: trigger OAuth -->
-      <div v-if="upstoxStep === 'idle'" class="flex gap-2">
-        <button
-          class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5"
-          :disabled="upstoxLoading"
-          @click="startUpstoxAuth"
-        >
-          <svg v-if="upstoxLoading" class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-          </svg>
-          {{ upstoxStatus.configured ? 'Re-authenticate' : 'Connect Upstox' }}
-        </button>
-      </div>
-
-      <!-- Step 2: paste the code -->
-      <div v-if="upstoxStep === 'awaiting-code'" class="space-y-3">
-        <p class="text-xs" style="color: var(--text-muted);">
-          A browser tab opened with the Upstox login page. After authorising, copy the
-          <span class="font-mono text-brand-400">code</span> from the redirect URL and paste it below.
-        </p>
-        <div v-if="upstoxAuthUrl" class="text-xs break-all" style="color: var(--text-muted);">
-          <span class="font-medium" style="color: var(--text-primary);">Auth URL: </span>
-          <a :href="upstoxAuthUrl" target="_blank" rel="noopener noreferrer" class="text-brand-400 underline">
-            Open again
-          </a>
-        </div>
-        <input
-          v-model="upstoxCode"
-          type="text"
-          class="input text-xs w-full font-mono"
-          placeholder="Paste authorization code here…"
-          @keyup.enter="submitUpstoxCode"
-        />
-        <div class="flex gap-2">
-          <button
-            class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5"
-            :disabled="upstoxLoading || !upstoxCode.trim()"
-            @click="submitUpstoxCode"
-          >
-            <svg v-if="upstoxLoading" class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
-              <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
-              <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
-            </svg>
-            Submit Code
-          </button>
-          <button class="btn-ghost text-xs" @click="cancelUpstoxAuth">Cancel</button>
-        </div>
-      </div>
+      <button
+        class="btn-primary text-xs px-4 py-1.5 flex items-center gap-1.5"
+        :disabled="upstoxLoading"
+        @click="startUpstoxAuth"
+      >
+        <svg v-if="upstoxLoading" class="animate-spin w-3 h-3" fill="none" viewBox="0 0 24 24">
+          <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"/>
+          <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8z"/>
+        </svg>
+        {{ upstoxStatus.configured ? 'Re-authenticate' : 'Connect Upstox' }}
+      </button>
     </div>
 
     <!-- Account -->

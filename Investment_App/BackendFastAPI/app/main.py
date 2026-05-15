@@ -16,6 +16,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.v1.router import router as v1_router
+from app.api.v1.upstox_auth import callback_router as upstox_callback_router
 from app.core.config import get_settings
 from app.core.exceptions import BrokerAuthError, BrokerError, BrokerNotFoundError
 from app.core.logger import get_logger
@@ -96,6 +97,8 @@ def create_app() -> FastAPI:
         )
 
     # ── Routes ────────────────────────────────────────────────────────────
+    # /callback is registered at root (no prefix) so it matches UPSTOX_REDIRECT_URI
+    app.include_router(upstox_callback_router)
     app.include_router(v1_router)
 
     @app.get("/health", tags=["system"])

@@ -15,7 +15,10 @@ from __future__ import annotations
 import re
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from urllib.parse import quote
+
+from fastapi import APIRouter, HTTPException, status
+from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
 
 from app.auth.deps import CurrentUser
@@ -23,13 +26,20 @@ from app.brokers.upstox import _SettingsConfig, UpstoxAPIError, UpstoxClient
 from app.core.config import get_settings
 from app.core.logger import get_logger
 
+# Protected JSON API router (requires JWT bearer token)
 router = APIRouter(prefix="/upstox/auth", tags=["upstox-auth"])
+# Public router — registered at app root so /callback matches the Upstox redirect URI
+callback_router = APIRouter(tags=["upstox-auth"])
 logger = get_logger(__name__)
 
-# Path to the BackendFastAPI .env file (same directory as the running app)
-_BACKEND_ENV = Path(__file__).resolve().parents[4] / ".env"
-# Path to the upstox .env file (sibling directory)
-_UPSTOX_ENV  = Path(__file__).resolve().parents[4] / ".." / "upstox" / ".env"
+# upstox_auth.py lives at:  BackendFastAPI/app/api/v1/upstox_auth.py
+#   parents[0] = v1/
+#   parents[1] = api/
+#   parents[2] = app/
+#   parents[3] = BackendFastAPI/   ← backend root
+#   parents[4] = Investment_App/
+_BACKEND_ENV = Path(__file__).resolve().parents[3] / ".env"
+_UPSTOX_ENV  = Path(__file__).resolve().parents[4] / "upstox" / ".env"
 
 
 # ── Schemas ───────────────────────────────────────────────────────────────────
@@ -119,9 +129,13 @@ def exchange_code(body: CallbackRequest, _user: CurrentUser) -> CallbackResponse
         ) from exc
 
     # Persist token into .env files
-    for env_path in (_BACKEND_ENV, _UPSTOX_ENV.resolve()):
+    for env_path in (_BACKEND_ENV, _UPSTOX_ENV):
         updated = _update_env_token(env_path, token)
         logger.info("Token %s in %s", "updated" if updated else "skipped (not found)", env_path)
+
+    # Clear the lru_cache so the next get_settings() call reloads from the
+    # updated .env file (otherwise auth_status would return stale empty token).
+    get_settings.cache_clear()
 
     preview = token[:8] + "…" if len(token) > 8 else "…"
     return CallbackResponse(
@@ -141,3 +155,57 @@ def auth_status(_user: CurrentUser) -> StatusResponse:
         preview = token[:8] + "…" if len(token) > 8 else "…"
         return StatusResponse(configured=True, token_preview=preview)
     return StatusResponse(configured=False, token_preview=None)
+
+
+# ── Public OAuth2 callback — registered at root level (no /api/v1 prefix) ────
+#
+# Upstox redirects the user's browser to UPSTOX_REDIRECT_URI after login.
+# That URI must be http://localhost:8000/callback (or your production domain).
+# This endpoint catches that redirect, exchanges the code, saves the token,
+# and bounces the browser to the frontend settings page.
+
+def _save_token(token: str) -> None:
+    """Write token to both .env files and bust the settings cache."""
+    for env_path in (_BACKEND_ENV, _UPSTOX_ENV):
+        updated = _update_env_token(env_path, token)
+        logger.info("Token %s in %s", "updated" if updated else "skipped (not found)", env_path)
+    get_settings.cache_clear()
+
+
+@callback_router.get("/callback")
+def upstox_oauth_callback(
+    code: str | None = None,
+    error: str | None = None,
+    error_description: str | None = None,
+) -> RedirectResponse:
+    """
+    Public OAuth2 redirect handler.
+
+    Upstox redirects the browser here with ?code=... after the user logs in.
+    The endpoint exchanges the code for an access token, persists it, then
+    redirects to {FRONTEND_URL}/settings?upstox_auth=success (or ?upstox_auth=error).
+    No JWT authentication required — this is called by Upstox, not the app user.
+    """
+    frontend_settings = get_settings().frontend_url.rstrip("/") + "/settings"
+
+    if error or not code:
+        msg = error_description or error or "Authorization denied by user"
+        logger.warning("Upstox OAuth callback received error: %s", msg)
+        return RedirectResponse(
+            url=f"{frontend_settings}?upstox_auth=error&message={quote(msg)}",
+            status_code=302,
+        )
+
+    client = _build_client()
+    try:
+        token = client.exchange_code_for_token(code.strip())
+    except UpstoxAPIError as exc:
+        logger.warning("Upstox token exchange failed: %s", exc)
+        return RedirectResponse(
+            url=f"{frontend_settings}?upstox_auth=error&message={quote(str(exc))}",
+            status_code=302,
+        )
+
+    _save_token(token)
+    logger.info("Upstox OAuth2 flow completed successfully via /callback")
+    return RedirectResponse(url=f"{frontend_settings}?upstox_auth=success", status_code=302)
