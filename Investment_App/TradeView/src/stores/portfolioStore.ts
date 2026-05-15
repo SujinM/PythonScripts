@@ -102,7 +102,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
   })
 
   // ── Actions ──────────────────────────────────────────────────────────────
-
+  /** Returns true when an error is a 401 Unauthorized (broker not authenticated). */
+  function isAuthError(err: unknown): boolean {
+    const status = (err as { response?: { status?: number } })?.response?.status
+    return status === 401 || (err instanceof Error && /\b401\b|Unauthorized/i.test(err.message))
+  }
   /** Load the list of registered brokers from the backend. */
   async function fetchBrokers() {
     try {
@@ -130,7 +134,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       summaries.value[broker] = await portfolioApi.getSummary(broker)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : `Failed to fetch summary for ${broker}`
-      notifications.error('Summary error', error.value)
+      if (isAuthError(err)) {
+        notifications.warning(`${broker.toUpperCase()} not authenticated`, 'Re-link your broker account in Settings')
+      } else {
+        notifications.error('Summary error', error.value)
+      }
     } finally {
       loading.value = false
     }
@@ -144,7 +152,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       holdings.value[broker] = await portfolioApi.getHoldings(broker)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : `Failed to fetch holdings for ${broker}`
-      notifications.error('Holdings error', error.value)
+      if (isAuthError(err)) {
+        notifications.warning(`${broker.toUpperCase()} not authenticated`, 'Re-link your broker account in Settings')
+      } else {
+        notifications.error('Holdings error', error.value)
+      }
     } finally {
       loading.value = false
     }
@@ -158,7 +170,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       positions.value[broker] = await portfolioApi.getPositions(broker)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : `Failed to fetch positions for ${broker}`
-      notifications.error('Positions error', error.value)
+      if (isAuthError(err)) {
+        notifications.warning(`${broker.toUpperCase()} not authenticated`, 'Re-link your broker account in Settings')
+      } else {
+        notifications.error('Positions error', error.value)
+      }
     } finally {
       loading.value = false
     }
@@ -172,7 +188,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       trades.value[broker] = await portfolioApi.getTrades(broker)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : `Failed to fetch trades for ${broker}`
-      notifications.error('Trades error', error.value)
+      if (isAuthError(err)) {
+        notifications.warning(`${broker.toUpperCase()} not authenticated`, 'Re-link your broker account in Settings')
+      } else {
+        notifications.error('Trades error', error.value)
+      }
     } finally {
       loading.value = false
     }
@@ -186,7 +206,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       analyses.value[broker] = await portfolioApi.getAnalysis(broker)
     } catch (err: unknown) {
       error.value = err instanceof Error ? err.message : `Failed to fetch analysis for ${broker}`
-      notifications.error('Analysis error', error.value)
+      if (isAuthError(err)) {
+        notifications.warning(`${broker.toUpperCase()} not authenticated`, 'Re-link your broker account in Settings')
+      } else {
+        notifications.error('Analysis error', error.value)
+      }
     } finally {
       loading.value = false
     }
@@ -198,7 +222,11 @@ export const usePortfolioStore = defineStore('portfolio', () => {
       alerts.value[broker] = await portfolioApi.getAlerts(broker)
     } catch (err: unknown) {
       const msg = err instanceof Error ? err.message : `Failed to fetch alerts for ${broker}`
-      notifications.error('Alerts error', msg)
+      if (isAuthError(err)) {
+        notifications.warning(`${broker.toUpperCase()} not authenticated`, 'Re-link your broker account in Settings')
+      } else {
+        notifications.error('Alerts error', msg)
+      }
     }
   }
 

@@ -1,5 +1,6 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted, watch } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { storeToRefs } from 'pinia'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { useLiveTick } from '@/composables/useLiveTick'
 import { formatCurrency, formatPercent, formatNumber } from '@/utils/formatters'
@@ -10,6 +11,39 @@ import Badge from '@/components/common/Badge.vue'
 const portfolio = usePortfolioStore()
 const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
 const fmt = (v: number) => formatCurrency(v, currency.value)
+
+// ── Live tick flash direction ──────────────────────────────────────────────────
+// prevPrices is a plain Map (non-reactive) — avoids watchEffect dependency loop
+const prevPrices = new Map<string, number>()
+const tickDir    = ref<Record<string, 'up' | 'down'>>({})
+const flashTimers: Record<string, ReturnType<typeof setTimeout>> = {}
+
+// storeToRefs gives a proper reactive Ref to the Pinia computed getter
+const { activeHoldingsWithLivePrice } = storeToRefs(portfolio)
+
+watch(activeHoldingsWithLivePrice, (holdings) => {
+  for (const h of holdings) {
+    const key  = h.instrument_key
+    const cur  = h.last_price
+    const prev = prevPrices.get(key)
+    prevPrices.set(key, cur)
+    if (prev === undefined || cur === prev) continue
+
+    const dir: 'up' | 'down' = cur > prev ? 'up' : 'down'
+    clearTimeout(flashTimers[key])
+
+    // If same direction is already flashing, remove first so the CSS
+    // animation restarts (browser only replays when the class is re-added)
+    if (tickDir.value[key]) {
+      delete tickDir.value[key]
+      nextTick(() => { tickDir.value[key] = dir })
+    } else {
+      tickDir.value[key] = dir
+    }
+
+    flashTimers[key] = setTimeout(() => { delete tickDir.value[key] }, 900)
+  }
+})
 
 // ── Live tick management ──────────────────────────────────────────────────────
 const liveTickMap: Record<string, ReturnType<typeof useLiveTick>> = {}
@@ -197,13 +231,21 @@ function pnlClass(value: number): string {
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
               {{ fmt(h.average_price) }}
             </td>
-            <td class="px-4 py-3 text-right font-mono text-xs font-semibold" style="color: var(--text-primary);">
+            <td
+              class="px-4 py-3 text-right font-mono text-xs font-semibold"
+              :class="tickDir[h.instrument_key] === 'up' ? 'tick-up' : tickDir[h.instrument_key] === 'down' ? 'tick-down' : ''"
+              :style="{ color: tickDir[h.instrument_key] === 'up' ? '#4ade80' : tickDir[h.instrument_key] === 'down' ? '#f87171' : 'var(--text-primary)' }"
+            >
               {{ fmt(h.last_price) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
               {{ fmt(h.invested_value) }}
             </td>
-            <td class="px-4 py-3 text-right font-mono text-xs" style="color: var(--text-secondary);">
+            <td
+              class="px-4 py-3 text-right font-mono text-xs"
+              :class="tickDir[h.instrument_key] === 'up' ? 'tick-up' : tickDir[h.instrument_key] === 'down' ? 'tick-down' : ''"
+              :style="{ color: tickDir[h.instrument_key] === 'up' ? '#4ade80' : tickDir[h.instrument_key] === 'down' ? '#f87171' : 'var(--text-secondary)' }"
+            >
               {{ fmt(h.current_value) }}
             </td>
             <td class="px-4 py-3 text-right font-mono text-xs font-semibold" :class="pnlClass(h.unrealised_pnl)">
@@ -319,3 +361,22 @@ function pnlClass(value: number): string {
 
   </div>
 </template>
+
+<style scoped>
+/* Live tick flash — background glow only; text color is set via inline :style */
+@keyframes flash-up {
+  0%   { background-color: rgba(34, 197, 94, 0.2); }
+  100% { background-color: transparent; }
+}
+@keyframes flash-down {
+  0%   { background-color: rgba(239, 68, 68, 0.2); }
+  100% { background-color: transparent; }
+}
+
+.tick-up {
+  animation: flash-up 0.9s ease-out;
+}
+.tick-down {
+  animation: flash-down 0.9s ease-out;
+}
+</style>

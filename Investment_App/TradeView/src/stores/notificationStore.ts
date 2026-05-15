@@ -13,6 +13,12 @@ export const useNotificationStore = defineStore('notifications', () => {
     message?: string,
     duration = 4000,
   ): string {
+    // Suppress duplicate — same type + title + message already visible
+    const isDupe = notifications.value.some(
+      (n) => n.type === type && n.title === title && n.message === message,
+    )
+    if (isDupe) return ''
+
     const id = `notif-${Date.now()}-${Math.random().toString(36).slice(2)}`
     notifications.value.push({ id, type, title, message, duration, timestamp: Date.now() })
 

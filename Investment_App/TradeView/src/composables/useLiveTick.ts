@@ -2,7 +2,8 @@ import { ref, onUnmounted } from 'vue'
 import type { LiveTickFrame } from '@/types/portfolio'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 
-const RECONNECT_DELAY_MS = 3_000
+const RECONNECT_BASE_MS = 3_000      // first retry after 3 s
+const RECONNECT_MAX_MS  = 300_000    // cap at 5 min
 
 /**
  * Composable that opens a WebSocket to:
@@ -21,7 +22,10 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
   const lastError    = ref<string | null>(null)
   let ws: WebSocket | null = null
   let reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  let stableTimer: ReturnType<typeof setTimeout> | null = null   // resets backoff after sustained connection
   let stopped = false
+  let reconnectAttempts = 0          // tracks consecutive failures for backoff
+  let refreshTimer: ReturnType<typeof setTimeout> | null = null  // debounce refreshAll
 
   function buildUrl(): string {
     const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
@@ -41,9 +45,21 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
     ws.onopen = () => {
       isConnected.value = true
       lastError.value = null
-      // Refresh holdings + summary so the store is never stale after a reconnect
-      // (backend cache is cleared on server restart, so data may have changed).
-      portfolio.refreshAll(broker).catch(() => { /* ignore — WS tick will keep updating */ })
+
+      // Only reset backoff after staying connected for 10 s.
+      // If the server accepts then immediately closes (e.g. auth 401),
+      // onopen fires BEFORE onclose — so resetting here would defeat backoff.
+      stableTimer = setTimeout(() => { reconnectAttempts = 0 }, 10_000)
+
+      // Debounced refreshAll — only fires once per 10 s even if WS reconnects
+      // rapidly (e.g. backend restart). Prevents flooding the server with
+      // repeated holdings/summary/positions calls during auth-error loops.
+      if (!refreshTimer) {
+        refreshTimer = setTimeout(() => {
+          refreshTimer = null
+          portfolio.refreshAll(broker).catch(() => { /* ignore — WS tick will keep updating */ })
+        }, 500)
+      }
     }
 
     ws.onmessage = (event) => {
@@ -58,11 +74,20 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
       } catch { /* ignore malformed frames */ }
     }
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       isConnected.value = false
-      if (!stopped) {
-        reconnectTimer = setTimeout(connect, RECONNECT_DELAY_MS)
-      }
+      stableTimer && clearTimeout(stableTimer)
+      stableTimer = null
+
+      // 4004 = broker not supported — fatal, never reconnect
+      if (stopped || event.code === 4004) return
+
+      // Exponential backoff: 3 s → 6 s → 12 s → 24 s → … → 5 min cap
+      // This prevents flooding the backend when auth is failing (code 4000)
+      // or the server is temporarily unavailable.
+      const delay = Math.min(RECONNECT_BASE_MS * 2 ** reconnectAttempts, RECONNECT_MAX_MS)
+      reconnectAttempts++
+      reconnectTimer = setTimeout(connect, delay)
     }
 
     ws.onerror = () => {
@@ -74,6 +99,8 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
   function disconnect() {
     stopped = true
     reconnectTimer && clearTimeout(reconnectTimer)
+    stableTimer    && clearTimeout(stableTimer)
+    refreshTimer   && clearTimeout(refreshTimer)
     ws?.close()
     isConnected.value = false
   }
