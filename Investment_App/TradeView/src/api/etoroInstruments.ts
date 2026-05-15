@@ -18,19 +18,19 @@ export interface EtoroListParams extends EtoroInstrumentFilters {
 export const etoroInstrumentsApi = {
   /** GET /api/v1/etoro/instruments */
   async getInstruments(params?: EtoroListParams): Promise<PaginatedEtoroInstruments> {
-    const { data } = await api.get<PaginatedEtoroInstruments>('/etoro/instruments', { params })
+    const { data } = await api.get<PaginatedEtoroInstruments>('/api/v1/etoro/instruments', { params })
     return data
   },
 
   /** GET /api/v1/etoro/instruments/{id} */
   async getInstrument(instrumentId: number): Promise<EtoroInstrument> {
-    const { data } = await api.get<EtoroInstrument>(`/etoro/instruments/${instrumentId}`)
+    const { data } = await api.get<EtoroInstrument>(`/api/v1/etoro/instruments/${instrumentId}`)
     return data
   },
 
   /** POST /api/v1/etoro/instruments/sync */
   async syncInstruments(): Promise<SyncResult> {
-    const { data } = await api.post<SyncResult>('/etoro/instruments/sync')
+    const { data } = await api.post<SyncResult>('/api/v1/etoro/instruments/sync')
     return data
   },
 }
