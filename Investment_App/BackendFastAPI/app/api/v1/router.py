@@ -7,9 +7,12 @@ from app.api.v1 import (
     auth,
     debug,
     etoro_instruments,
+    instruments,
     live,
+    market,
     portfolio,
     portfolios,
+    sync,
     upstox_auth,
     users,
 )
@@ -24,3 +27,7 @@ router.include_router(live.router)
 router.include_router(debug.router)
 router.include_router(upstox_auth.router)
 router.include_router(etoro_instruments.router)
+# Phase 1 — frontend contract endpoints
+router.include_router(instruments.router)
+router.include_router(market.router)
+router.include_router(sync.router)

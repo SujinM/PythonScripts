@@ -4,23 +4,23 @@ import type { Instrument, InstrumentFilter, PaginationParams, PaginatedResponse 
 // ─── Instruments API ──────────────────────────────────────────────────────────
 
 export const instrumentsApi = {
-  /** GET /instruments — paginated, filtered list */
+  /** GET /api/v1/instruments — paginated, filtered list */
   async getInstruments(
     params?: Partial<InstrumentFilter & PaginationParams>,
   ): Promise<PaginatedResponse<Instrument>> {
-    const { data } = await api.get<PaginatedResponse<Instrument>>('/instruments', { params })
+    const { data } = await api.get<PaginatedResponse<Instrument>>('/api/v1/instruments', { params })
     return data
   },
 
-  /** GET /instruments/{symbol} — single instrument details */
+  /** GET /api/v1/instruments/{symbol} — single instrument details */
   async getInstrument(symbol: string): Promise<Instrument> {
-    const { data } = await api.get<Instrument>(`/instruments/${symbol}`)
+    const { data } = await api.get<Instrument>(`/api/v1/instruments/${symbol}`)
     return data
   },
 
-  /** GET /sync-instruments — trigger a manual sync */
+  /** GET /api/v1/sync-instruments — trigger a manual sync */
   async syncInstruments(): Promise<{ message: string; taskId?: string }> {
-    const { data } = await api.get<{ message: string; taskId?: string }>('/sync-instruments')
+    const { data } = await api.get<{ message: string; taskId?: string }>('/api/v1/sync-instruments')
     return data
   },
 }
