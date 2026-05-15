@@ -19,6 +19,7 @@ interface NavItem {
 const navItems: NavItem[] = [
   { name: 'Dashboard',     to: '/',                  icon: 'home' },
   { name: 'Holdings',      to: '/holdings',           icon: 'wallet' },
+  { name: 'Instruments',   to: '/instruments',        icon: 'chart-bar' },
   { name: 'Analysis',      to: '/statistics',         icon: 'chart-pie' },
   { name: 'eToro Markets', to: '/etoro-instruments',  icon: 'globe' },
   { name: 'Brokers',       to: '/sync',               icon: 'refresh' },

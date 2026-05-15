@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 import { storeToRefs } from 'pinia'
 import { usePortfolioStore } from '@/stores/portfolioStore'
 import { useLiveTick } from '@/composables/useLiveTick'
@@ -9,8 +10,13 @@ import SearchBar from '@/components/common/SearchBar.vue'
 import Badge from '@/components/common/Badge.vue'
 
 const portfolio = usePortfolioStore()
-const currency = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
+const router    = useRouter()
+const currency  = computed(() => portfolio.activeBroker === 'etoro' ? 'USD' : 'INR')
 const fmt = (v: number) => formatCurrency(v, currency.value)
+
+function navigateToDetail(symbol: string) {
+  router.push({ name: 'instrument-detail', params: { symbol } })
+}
 
 // ── Live tick flash direction ──────────────────────────────────────────────────
 // prevPrices is a plain Map (non-reactive) — avoids watchEffect dependency loop
@@ -212,7 +218,9 @@ function pnlClass(value: number): string {
           <tr
             v-for="h in filteredHoldings"
             :key="h.instrument_key"
-            class="hover:bg-white/5 transition-colors"
+            class="hover:bg-white/5 transition-colors cursor-pointer"
+            :title="`View ${h.trading_symbol} detail`"
+            @click="navigateToDetail(h.trading_symbol)"
           >
             <td class="px-4 py-3">
               <div class="font-mono font-semibold text-xs" style="color: var(--text-primary);">
