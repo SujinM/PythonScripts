@@ -1,0 +1,75 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  /* ── Dark-only theme tokens ── */
+  :root {
+    --surface-primary:   #090c14;
+    --surface-secondary: #0d1017;
+    --surface-card:      #111520;
+    --surface-sidebar:   #0a0d14;
+    --surface-border:    #1a2035;
+    --text-primary:      #e2e8f0;
+    --text-secondary:    #94a3b8;
+    --text-muted:        #4b5775;
+    --scrollbar-thumb:   #1e2a40;
+    --scrollbar-track:   #090c14;
+  }
+
+  * { @apply border-[var(--surface-border)]; }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    @apply font-sans antialiased;
+    background-color: var(--surface-primary);
+    color: var(--text-primary);
+  }
+
+  ::-webkit-scrollbar       { width: 5px; height: 5px; }
+  ::-webkit-scrollbar-track { background: var(--scrollbar-track); }
+  ::-webkit-scrollbar-thumb { background: var(--scrollbar-thumb); border-radius: 3px; }
+}
+
+@layer components {
+  .card {
+    @apply rounded-xl border;
+    background-color: var(--surface-card);
+    border-color: var(--surface-border);
+  }
+
+  .stat-value { @apply font-mono font-semibold tabular-nums; }
+
+  .text-profit { @apply text-emerald-400; }
+  .text-loss   { @apply text-red-400; }
+
+  .badge {
+    @apply inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-xs font-medium;
+  }
+
+  /* Form input */
+  .calc-input {
+    @apply w-full rounded-lg px-3 py-2 text-sm font-mono
+           bg-[#0d1220] border border-[var(--surface-border)]
+           text-[var(--text-primary)] placeholder-[var(--text-muted)]
+           focus:outline-none focus:ring-2 focus:ring-brand-500/50 focus:border-brand-500/60
+           transition;
+  }
+
+  .calc-label {
+    @apply block mb-1 text-xs font-medium text-[var(--text-secondary)] uppercase tracking-wide;
+  }
+
+  /* Primary button */
+  .btn-primary {
+    @apply inline-flex items-center justify-center gap-2 rounded-lg px-4 py-2 text-sm font-semibold
+           bg-brand-600 hover:bg-brand-500 active:bg-brand-700
+           text-white transition focus:outline-none focus:ring-2 focus:ring-brand-500/50;
+  }
+
+  /* Result row */
+  .result-row {
+    @apply flex items-center justify-between py-2 border-b border-[var(--surface-border)] last:border-0;
+  }
+}
