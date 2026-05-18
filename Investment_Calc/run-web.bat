@@ -1,7 +1,7 @@
-@echo off
-:: ─────────────────────────────────────────────────────────────────────────────
-:: run-web.bat — InvestCalc Web Dashboard launcher (Windows)
-:: ─────────────────────────────────────────────────────────────────────────────
+﻿@echo off
+:: â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+:: run-web.bat â€” InvestCalc Web Dashboard launcher (Windows)
+:: â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 setlocal EnableDelayedExpansion
 title InvestCalc Web Dashboard
 set "WEB_DIR=%~dp0web"
@@ -26,7 +26,7 @@ echo  Node: !NODE_VER!
 cd /d "%WEB_DIR%"
 if not exist "node_modules\" (
   echo  Installing dependencies...
-  npm install --silent
+  call npm install || call npm.cmd install
   if !errorlevel! neq 0 (echo  [ERROR] npm install failed & pause & exit /b 1)
   echo  Dependencies installed.
 )
@@ -35,5 +35,5 @@ if not exist "node_modules\" (
 echo.
 echo  Starting dev server at http://localhost:5174
 start http://localhost:5174
-npm run dev
+call npm run dev || call npm.cmd run dev
 pause

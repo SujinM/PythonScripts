@@ -65,10 +65,17 @@ Both launchers automatically detect Python 3.11+, create a `.venv`, and launch t
 ```bash
 python3 -m venv .venv
 source .venv/bin/activate        # macOS/Linux
-.venv\Scripts\activate.bat       # Windows
+. .venv\Scripts\Activate.ps1     # Windows PowerShell
+.venv\Scripts\activate.bat       # Windows Command Prompt (cmd)
 
 pip install -e .
 python -m investcalc
+```
+
+If PowerShell blocks activation, run this once per terminal session, then activate again:
+
+```powershell
+Set-ExecutionPolicy -Scope Process -ExecutionPolicy RemoteSigned
 ```
 
 ---

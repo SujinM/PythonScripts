@@ -15,14 +15,17 @@ echo.
 
 :: ── 1. Find Python ─────────────────────────────────────────────────────────
 set "PYTHON="
-for %%C in (python3.12 python3.11 python3 python py) do (
+for %%C in (py python) do (
     where %%C >nul 2>&1
     if !errorlevel! == 0 (
-        for /f "tokens=2 delims= " %%V in ('%%C --version 2^>^&1') do (
-            set "PY_VER=%%V"
+        %%C -c "import sys" >nul 2>&1
+        if !errorlevel! == 0 (
+            for /f "tokens=2 delims= " %%V in ('%%C --version 2^>^&1') do (
+                set "PY_VER=%%V"
+            )
+            set "PYTHON=%%C"
+            goto :found_python
         )
-        set "PYTHON=%%C"
-        goto :found_python
     )
 )
 echo  [ERROR] Python 3.11+ not found. Please install from https://python.org
