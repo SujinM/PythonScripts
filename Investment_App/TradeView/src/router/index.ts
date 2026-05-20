@@ -89,6 +89,56 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/EtoroInstruments.vue'),
         meta: { title: 'eToro Markets' },
       },
+
+      // ─── Calculations ───────────────────────────────────────────────────
+      {
+        path: 'calc',
+        name: 'calc',
+        component: () => import('@/pages/calc/CalcDashboard.vue'),
+        meta: { title: 'Calculations' },
+      },
+      {
+        path: 'calc/price',
+        name: 'calc-price',
+        component: () => import('@/pages/calc/PriceCalc.vue'),
+        meta: { title: 'Price Calc' },
+      },
+      {
+        path: 'calc/returns',
+        name: 'calc-returns',
+        component: () => import('@/pages/calc/ReturnsCalc.vue'),
+        meta: { title: 'Returns & P&L' },
+      },
+      {
+        path: 'calc/risk',
+        name: 'calc-risk',
+        component: () => import('@/pages/calc/RiskCalc.vue'),
+        meta: { title: 'Risk Management' },
+      },
+      {
+        path: 'calc/position',
+        name: 'calc-position',
+        component: () => import('@/pages/calc/PositionCalc.vue'),
+        meta: { title: 'Position & Portfolio' },
+      },
+      {
+        path: 'calc/options',
+        name: 'calc-options',
+        component: () => import('@/pages/calc/OptionsCalc.vue'),
+        meta: { title: 'Options Calculator' },
+      },
+      {
+        path: 'calc/percent',
+        name: 'calc-percent',
+        component: () => import('@/pages/calc/PercentCalc.vue'),
+        meta: { title: 'Percentage Calculator' },
+      },
+      {
+        path: 'calc/history',
+        name: 'calc-history',
+        component: () => import('@/pages/calc/CalcHistory.vue'),
+        meta: { title: 'Calc History' },
+      },
     ],
   },
 

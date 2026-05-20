@@ -1,15 +1,15 @@
 <script setup lang="ts">
 import { ref, reactive } from 'vue'
-import CalcInput  from '@/components/common/CalcInput.vue'
-import ResultCard from '@/components/common/ResultCard.vue'
-import ErrorAlert from '@/components/common/ErrorAlert.vue'
-import { useHistoryStore } from '@/stores/historyStore'
-import * as C from '@/utils/calculations'
+import CalcInput  from '@/components/calc/CalcInput.vue'
+import ResultCard from '@/components/calc/ResultCard.vue'
+import ErrorAlert from '@/components/calc/ErrorAlert.vue'
+import { useCalcHistoryStore } from '@/stores/calcHistoryStore'
+import * as C from '@/utils/calcFunctions'
 
-const history = useHistoryStore()
+const history = useCalcHistoryStore()
 const error   = ref('')
 
-// ── Combined: Price Difference + Percentage Change ───────────────────────────
+// ── Combined: Price Difference + Percentage Change ────────────────────────────
 const diff = reactive({ old: '', new: '' })
 const diffResult = ref<Record<string, number | string> | null>(null)
 function calcDiff() {
@@ -27,7 +27,6 @@ function calcDiff() {
   } catch (e: any) { error.value = e.message }
 }
 
-// ── 3. Stop Loss & Take Profit ───────────────────────────────────────────────
 const sltp = reactive({ buy: '', sl: '', tp: '' })
 const sltpResult = ref<Record<string, number | string> | null>(null)
 function calcSLTP() {
@@ -40,7 +39,6 @@ function calcSLTP() {
   } catch (e: any) { error.value = e.message }
 }
 
-// ── 4. Pivot Points ──────────────────────────────────────────────────────────
 const pivot = reactive({ h: '', l: '', c: '' })
 const pivotResult = ref<Record<string, number | string> | null>(null)
 function calcPivot() {
@@ -48,7 +46,6 @@ function calcPivot() {
   catch (e: any) { error.value = e.message }
 }
 
-// ── 5. Moving Average ────────────────────────────────────────────────────────
 const ma = reactive({ prices: '', period: '' })
 const maResult = ref<Record<string, number | string> | null>(null)
 function calcMA() {
@@ -67,9 +64,7 @@ function calcMA() {
       <h2 class="text-xl font-bold text-[var(--text-primary)]">Price Calculations</h2>
       <p class="text-sm text-[var(--text-secondary)] mt-0.5">Difference, % change, stop-loss, take-profit, pivot points, moving average</p>
     </div>
-
     <ErrorAlert v-if="error" :message="error" />
-
     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
       <div class="card p-5 space-y-4">
         <h3 class="text-sm font-semibold text-[var(--text-secondary)]">Price Difference & % Change</h3>
@@ -80,8 +75,6 @@ function calcMA() {
         <button class="btn-primary w-full" @click="calcDiff">Calculate</button>
         <ResultCard v-if="diffResult" title="Result" :results="diffResult" highlightKey="Price Difference" />
       </div>
-
-      <!-- Stop Loss / Take Profit -->
       <div class="card p-5 space-y-4">
         <h3 class="text-sm font-semibold text-[var(--text-secondary)]">Stop Loss & Take Profit</h3>
         <CalcInput label="Buy Price" v-model="sltp.buy" placeholder="100" />
@@ -92,8 +85,6 @@ function calcMA() {
         <button class="btn-primary w-full" @click="calcSLTP">Calculate</button>
         <ResultCard v-if="sltpResult" title="Result" :results="sltpResult" />
       </div>
-
-      <!-- Pivot Points -->
       <div class="card p-5 space-y-4">
         <h3 class="text-sm font-semibold text-[var(--text-secondary)]">Pivot Points</h3>
         <div class="grid grid-cols-3 gap-3">
@@ -104,8 +95,6 @@ function calcMA() {
         <button class="btn-primary w-full" @click="calcPivot">Calculate</button>
         <ResultCard v-if="pivotResult" title="PP / R1–R3 / S1–S3" :results="pivotResult" highlightKey="PP" />
       </div>
-
-      <!-- Moving Average -->
       <div class="card p-5 space-y-4 lg:col-span-2">
         <h3 class="text-sm font-semibold text-[var(--text-secondary)]">Simple Moving Average</h3>
         <CalcInput label="Prices (comma-separated)" v-model="ma.prices" type="text" placeholder="100, 102, 105, 103, 108" />

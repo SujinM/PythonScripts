@@ -108,6 +108,26 @@
     @apply btn bg-red-600 text-white hover:bg-red-700 focus:ring-red-500;
   }
 
+  /* ─── Calc form utilities ──────────────────────────────────────────────── */
+  .calc-input {
+    @apply w-full rounded-lg px-3 py-2 text-sm font-mono outline-none transition-colors;
+    @apply focus:ring-2 focus:ring-brand-500/40;
+    background-color: var(--surface-secondary);
+    border: 1px solid var(--surface-border);
+    color: var(--text-primary);
+  }
+  .calc-input::placeholder { color: var(--text-muted); }
+
+  .calc-label {
+    @apply block mb-1 text-xs font-medium uppercase tracking-wide;
+    color: var(--text-secondary);
+  }
+
+  .result-row {
+    @apply flex items-center justify-between py-2 border-b last:border-0;
+    border-color: var(--surface-border);
+  }
+
   /* Loading shimmer */
   .skeleton {
     @apply animate-shimmer rounded;
