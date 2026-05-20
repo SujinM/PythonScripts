@@ -227,6 +227,22 @@ export function blackScholes(
   }
 }
 
+// ── Percentage Up / Down ──────────────────────────────────────────────────────
+
+export function percentageUpDown(value: number, pct: number) {
+  if (value === 0) throw new Error('Value cannot be zero.')
+  if (pct < 0)     throw new Error('Percentage must be a positive number.')
+  const delta = round(value * pct / 100, 4)
+  return {
+    'Original Value':  round(value, 4),
+    'Percentage':      `${pct}%`,
+    'Value UP':        round(value + delta, 4),
+    'Amount UP':       `+${delta}`,
+    'Value DOWN':      round(value - delta, 4),
+    'Amount DOWN':     `-${delta}`,
+  }
+}
+
 // ── Helpers ───────────────────────────────────────────────────────────────────
 
 function round(n: number, dp: number) {

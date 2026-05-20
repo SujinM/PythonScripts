@@ -11,8 +11,7 @@ const categories = [
   { name: 'Returns',   to: '/returns',  desc: 'P&L, CAGR, ROI, Dividend Yield, CI',       color: 'text-emerald-400', bg: 'bg-emerald-500/10 border-emerald-500/20' },
   { name: 'Risk',      to: '/risk',     desc: 'Position size, R/R, Sharpe, Volatility',   color: 'text-orange-400',  bg: 'bg-orange-500/10 border-orange-500/20' },
   { name: 'Position',  to: '/position', desc: 'Avg buy, Allocation, Lot size, P&L',       color: 'text-violet-400',  bg: 'bg-violet-500/10 border-violet-500/20' },
-  { name: 'Options',   to: '/options',  desc: 'Intrinsic value, Black-Scholes, Greeks',   color: 'text-rose-400',    bg: 'bg-rose-500/10 border-rose-500/20' },
-]
+  { name: 'Options',   to: '/options',  desc: 'Intrinsic value, Black-Scholes, Greeks',   color: 'text-rose-400',    bg: 'bg-rose-500/10 border-rose-500/20' },  { name: 'Percent',   to: '/percent', desc: 'Value % up / down — instant result',        color: 'text-cyan-400',    bg: 'bg-cyan-500/10 border-cyan-500/20' },]
 
 function fmt(v: number | string): string {
   if (typeof v === 'number') return Math.abs(v) >= 1000 ? v.toLocaleString() : v.toFixed(4)
