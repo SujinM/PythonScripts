@@ -100,6 +100,13 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/UpstoxInstruments.vue'),
         meta: { title: 'Upstox Instruments' },
       },
+      {
+        path: 'upstox-historical/:instrumentKey',
+        name: 'upstox-historical',
+        component: () => import('@/pages/UpstoxHistorical.vue'),
+        meta: { title: 'Historical Chart' },
+        props: true,
+      },
 
       // ─── Calculations ───────────────────────────────────────────────────
       {

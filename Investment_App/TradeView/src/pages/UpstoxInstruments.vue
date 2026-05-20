@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { ref, computed, watch, onMounted } from 'vue'
+import { useRouter } from 'vue-router'
 import DataTable from '@/components/common/DataTable.vue'
 import SearchBar from '@/components/common/SearchBar.vue'
 import Pagination from '@/components/common/Pagination.vue'
@@ -7,6 +8,16 @@ import { upstoxInstrumentsApi } from '@/api/upstoxInstruments'
 import type { UpstoxInstrument } from '@/types/upstoxInstrument'
 import { UPSTOX_SEGMENTS, UPSTOX_EXCHANGES } from '@/types/upstoxInstrument'
 import type { TableColumn, SortOrder } from '@/types/instrument'
+
+const router = useRouter()
+
+function viewChart(instrument: UpstoxInstrument) {
+  router.push({
+    name: 'upstox-historical',
+    params: { instrumentKey: encodeURIComponent(instrument.instrument_key) },
+    query:  { name: instrument.name || instrument.trading_symbol },
+  })
+}
 
 // ── State ─────────────────────────────────────────────────────────────────────
 
@@ -44,6 +55,7 @@ const columns = computed<TableColumn<Record<string, unknown>>[]>(() => [
   { key: 'isin',           label: 'ISIN',          sortable: false },
   { key: 'lot_size',       label: 'Lot',           sortable: true,  width: '70px' },
   { key: 'tick_size',      label: 'Tick',          sortable: true,  width: '70px' },
+  { key: '_chart',         label: '',              sortable: false, width: '50px' },
 ])
 
 // ── Data loading ──────────────────────────────────────────────────────────────
@@ -301,6 +313,19 @@ function exchangeChipStyle(exchange: string): Record<string, string> {
       <!-- Tick size -->
       <template #cell-tick_size="{ value }">
         <span class="text-xs tabular-nums">{{ value ?? '—' }}</span>
+      </template>
+
+      <!-- Chart link -->
+      <template #cell-_chart="{ row }">
+        <button
+          class="p-1.5 rounded hover:bg-brand-500/15 text-gray-500 hover:text-brand-400 transition-colors"
+          title="View historical chart"
+          @click.stop="viewChart(row as unknown as UpstoxInstrument)"
+        >
+          <svg class="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M7 12l3-3 3 3 4-4M8 21l4-4 4 4M3 4h18M4 4h16v12a1 1 0 01-1 1H5a1 1 0 01-1-1V4z" />
+          </svg>
+        </button>
       </template>
     </DataTable>
 
