@@ -83,11 +83,22 @@ const routes: RouteRecordRaw[] = [
         component: () => import('@/pages/Settings.vue'),
         meta: { title: 'Settings' },
       },
+      // Redirect old /sync route to settings (broker management moved there)
+      {
+        path: 'sync',
+        redirect: '/settings',
+      },
       {
         path: 'etoro-instruments',
         name: 'etoro-instruments',
         component: () => import('@/pages/EtoroInstruments.vue'),
         meta: { title: 'eToro Markets' },
+      },
+      {
+        path: 'upstox-instruments',
+        name: 'upstox-instruments',
+        component: () => import('@/pages/UpstoxInstruments.vue'),
+        meta: { title: 'Upstox Instruments' },
       },
 
       // ─── Calculations ───────────────────────────────────────────────────

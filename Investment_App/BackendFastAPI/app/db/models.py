@@ -89,3 +89,44 @@ class EtoroInstrument(Base):
     distribution_type   = Column(Integer,  nullable=True)            # DistributionType
     image_url           = Column(String(500), nullable=True)         # best-fit avatar URL
     synced_at           = Column(DateTime(timezone=True), nullable=True)
+
+
+# ---------------------------------------------------------------------------
+# Upstox instrument catalogue (populated by the sync endpoint)
+# ---------------------------------------------------------------------------
+
+class UpstoxInstrument(Base):
+    """
+    Mirror of the Upstox instrument master JSON file.
+
+    Segment mapping
+    ---------------
+      BSE_EQ          = BSE Equity
+      BSE_FO          = BSE F&O
+      BSE_INDEX       = BSE Index
+      NSE_EQ          = NSE Equity
+      NSE_FO          = NSE F&O
+      NSE_INDEX       = NSE Index
+      NSE_COM         = NSE Commodities
+      MCX_FO          = MCX F&O
+      NCD_FO          = NCD F&O
+      BCD_FO          = BCD F&O
+      GLOBAL_INDEX    = Global Index
+      GLOBAL_INDICATOR= Global Indicator
+    """
+
+    __tablename__ = "upstox_instruments"
+
+    instrument_key   = Column(String(100), primary_key=True)          # e.g. "BSE_EQ|INE376L01013"
+    trading_symbol   = Column(String(100), nullable=False, index=True)
+    name             = Column(String(300), nullable=False, index=True)
+    exchange         = Column(String(20),  nullable=False, index=True)  # BSE / NSE / MCX / GLOBAL
+    segment          = Column(String(30),  nullable=False, index=True)  # BSE_EQ / NSE_EQ / …
+    instrument_type  = Column(String(20),  nullable=True)
+    isin             = Column(String(20),  nullable=True,  index=True)
+    lot_size         = Column(Integer,     nullable=True)
+    tick_size        = Column(Float,       nullable=True)
+    freeze_quantity  = Column(Float,       nullable=True)
+    exchange_token   = Column(String(50),  nullable=True)
+    qty_multiplier   = Column(Float,       nullable=True)
+    synced_at        = Column(DateTime(timezone=True), nullable=True)

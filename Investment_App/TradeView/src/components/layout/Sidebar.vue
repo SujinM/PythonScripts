@@ -3,29 +3,36 @@ import { computed } from 'vue'
 import { RouterLink, useRoute } from 'vue-router'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { useAuthStore } from '@/stores/authStore'
+import { usePortfolioStore } from '@/stores/portfolioStore'
 
-const settings = useSettingsStore()
-const auth = useAuthStore()
-const route = useRoute()
+const settings  = useSettingsStore()
+const auth      = useAuthStore()
+const portfolio = usePortfolioStore()
+const route     = useRoute()
 const collapsed = computed(() => settings.sidebarCollapsed)
 const userInitial = computed(() => (auth.user?.username ?? auth.user?.email ?? 'U')[0].toUpperCase())
 
 interface NavItem {
-  name: string
-  to: string
-  icon: string
+  name:    string
+  to:      string
+  icon:    string
+  broker?: string   // if set, only shown when this broker is active
 }
 
-const navItems: NavItem[] = [
-  { name: 'Dashboard',     to: '/',                  icon: 'home' },
-  { name: 'Holdings',      to: '/holdings',           icon: 'wallet' },
-  { name: 'Instruments',   to: '/instruments',        icon: 'chart-bar' },
-  { name: 'Analysis',      to: '/statistics',         icon: 'chart-pie' },
-  { name: 'eToro Markets', to: '/etoro-instruments',  icon: 'globe' },
-  { name: 'Brokers',       to: '/sync',               icon: 'refresh' },
-  { name: 'Calculations',  to: '/calc',               icon: 'calculator' },
-  { name: 'Settings',      to: '/settings',           icon: 'cog' },
+const allNavItems: NavItem[] = [
+  { name: 'Dashboard',          to: '/',                   icon: 'home' },
+  { name: 'Holdings',           to: '/holdings',           icon: 'wallet' },
+  { name: 'Instruments',        to: '/instruments',        icon: 'chart-bar' },
+  { name: 'Analysis',           to: '/statistics',         icon: 'chart-pie' },
+  { name: 'eToro Instruments',  to: '/etoro-instruments',  icon: 'globe',   broker: 'etoro' },
+  { name: 'Upstox Instruments', to: '/upstox-instruments', icon: 'upstox',  broker: 'upstox' },
+  { name: 'Calculations',       to: '/calc',               icon: 'calculator' },
+  { name: 'Settings',           to: '/settings',           icon: 'cog' },
 ]
+
+const navItems = computed(() =>
+  allNavItems.filter(item => !item.broker || item.broker === portfolio.activeBroker)
+)
 
 function isActive(path: string): boolean {
   if (path === '/') return route.path === '/'
@@ -108,6 +115,9 @@ function isActive(path: string): boolean {
           </svg>
           <svg v-else-if="item.icon === 'globe'" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <svg v-else-if="item.icon === 'upstox'" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />
           </svg>
           <svg v-else-if="item.icon === 'calculator'" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M9 7H6a2 2 0 00-2 2v9a2 2 0 002 2h12a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4" />

@@ -40,6 +40,8 @@ class Settings(BaseSettings):
     upstox_redirect_uri: str = "https://127.0.0.1"
     upstox_access_token: str = ""
     upstox_base_url: str = "https://api.upstox.com/v2"
+    # Path to the Upstox instrument master JSON file (absolute or relative to BackendFastAPI/)
+    upstox_instruments_file: str = "../upstox/upstox_instrument.json"
 
     # eToro
     etoro_api_key: str = ""
