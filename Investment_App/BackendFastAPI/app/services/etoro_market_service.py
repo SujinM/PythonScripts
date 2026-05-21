@@ -229,9 +229,37 @@ _log = logging.getLogger(__name__)
 _TYPE_CRYPTO = 10
 _TYPE_FOREX  = 1
 
+# eToro uses $-prefixed symbols for indices and commodities that don't exist
+# on Yahoo Finance. Map them to their Yahoo Finance equivalents.
+_ETORO_TO_YF: dict[str, str] = {
+    # Indices
+    "$SPX500":   "^GSPC",       # S&P 500
+    "$NSDQ100":  "^NDX",        # NASDAQ-100
+    "$DJ30":     "^DJI",        # Dow Jones Industrial Average
+    "$FTSE100":  "^FTSE",       # FTSE 100
+    "$GER40":    "^GDAXI",      # DAX 40
+    "$NKY225":   "^N225",       # Nikkei 225
+    "$HK50":     "^HSI",        # Hang Seng
+    "$AUS200":   "^AXJO",       # ASX 200
+    "$FRA40":    "^FCHI",       # CAC 40
+    # Commodities (futures)
+    "$OIL":      "CL=F",        # WTI Crude Oil
+    "$NATGAS":   "NG=F",        # Natural Gas
+    "$GOLD":     "GC=F",        # Gold
+    "$SILVER":   "SI=F",        # Silver
+    "$COPPER":   "HG=F",        # Copper
+    "$USDOLLAR": "DX-Y.NYB",    # US Dollar Index
+    "$WHEAT":    "ZW=F",        # Wheat
+    "$CORN":     "ZC=F",        # Corn
+}
+
+
 def _to_yf_ticker(symbol: str, type_id: int | None) -> str:
     """Convert an eToro symbol + type to a Yahoo Finance ticker string."""
     sym = symbol.upper()
+    # eToro $-prefixed special symbols (indices, commodities)
+    if sym in _ETORO_TO_YF:
+        return _ETORO_TO_YF[sym]
     if type_id == _TYPE_CRYPTO:
         return f"{sym}-USD"          # ETH → ETH-USD
     if type_id == _TYPE_FOREX:

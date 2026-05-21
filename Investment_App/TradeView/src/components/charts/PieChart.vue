@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { useSettingsStore } from '@/stores/settingsStore'
 import { CHART_COLORS } from '@/utils/constants'
 import type { EChartsOption } from 'echarts'
@@ -21,6 +21,8 @@ const props = withDefaults(defineProps<Props>(), {
 })
 
 const settings = useSettingsStore()
+const hoverHtml = ref('')
+const chartRef = ref<{ getZr?: () => { on: (event: string, handler: () => void) => void; off: (event: string, handler: () => void) => void } } | null>(null)
 
 const option = computed((): EChartsOption => {
   const isDark = settings.theme === 'dark'
@@ -33,7 +35,11 @@ const option = computed((): EChartsOption => {
     backgroundColor: 'transparent',
     tooltip: {
       trigger: 'item',
-      formatter: '{b}: {c} ({d}%)',
+      formatter: (params: any) => {
+        const html = `${params.name}: ${params.value} (${params.percent}%)`
+        hoverHtml.value = html
+        return html
+      },
       backgroundColor: bgColor,
       borderColor,
       textStyle: { color: labelColor, fontSize: 12 },
@@ -63,8 +69,37 @@ const option = computed((): EChartsOption => {
     ],
   }
 })
+
+const _onZrOut = () => {
+  hoverHtml.value = ''
+}
+
+onMounted(() => nextTick(() => {
+  const zr = chartRef.value?.getZr?.()
+  zr?.on('globalout', _onZrOut)
+}))
+
+onUnmounted(() => {
+  const zr = chartRef.value?.getZr?.()
+  zr?.off('globalout', _onZrOut)
+})
 </script>
 
 <template>
-  <VChart :option="option" :style="{ height, width: '100%' }" :theme="settings.theme" autoresize />
+  <div class="relative">
+    <div
+      v-if="hoverHtml"
+      :class="[
+        'absolute top-3 z-10 max-w-[70%] rounded-lg border px-3 py-2 text-xs leading-5 shadow-sm pointer-events-none',
+        props.legendPosition === 'right' ? 'left-3' : 'right-3',
+      ]"
+      :style="{
+        backgroundColor: settings.theme === 'dark' ? '#141827f2' : '#fffffff2',
+        borderColor: settings.theme === 'dark' ? '#1e2340' : '#e2e8f0',
+        color: settings.theme === 'dark' ? '#e2e8f0' : '#1e293b',
+      }"
+      v-html="hoverHtml"
+    />
+    <VChart ref="chartRef" :option="option" :style="{ height, width: '100%' }" :theme="settings.theme" autoresize />
+  </div>
 </template>
