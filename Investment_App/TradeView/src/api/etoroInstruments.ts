@@ -18,6 +18,8 @@ export interface EtoroListParams extends EtoroInstrumentFilters {
 export interface InstrumentPriceChange {
   instrument_id:   number
   current_price:   number | null
+  change_1d_value: number | null
+  change_1d_pct:   number | null
   change_1m_value: number | null
   change_1m_pct:   number | null
   change_1y_value: number | null

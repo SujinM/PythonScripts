@@ -535,6 +535,7 @@ onMounted(() => loadWatchlists())
                       <tr style="background: var(--surface-primary);">
                         <th class="text-left px-3 py-2 font-medium" style="color: var(--text-muted);">Symbol</th>
                         <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">Price</th>
+                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">1-Day</th>
                         <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">1-Month</th>
                         <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">1-Year</th>
                       </tr>
@@ -559,6 +560,16 @@ onMounted(() => loadWatchlists())
                             {{ currentPrice(item.item_id) != null
                                 ? '$' + currentPrice(item.item_id)!.toFixed(2)
                                 : '—' }}
+                          </span>
+                        </td>
+
+                        <!-- 1-Day change -->
+                        <td class="px-3 py-2 text-right font-mono">
+                          <span :style="{ color: changeColor(priceChanges[String(item.item_id)]?.change_1d_value) }">
+                            {{ formatChange(
+                                priceChanges[String(item.item_id)]?.change_1d_value ?? null,
+                                priceChanges[String(item.item_id)]?.change_1d_pct   ?? null,
+                              ) }}
                           </span>
                         </td>
 

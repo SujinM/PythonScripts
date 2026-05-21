@@ -40,7 +40,7 @@ Investment_App/
 ├── upstox/                Upstox standalone CLI + upstox_app library
 ├── etoro/                 eToro standalone CLI + etoro_app library
 ├── ClientConsolApp/       .NET 8 C# console client (SujinsInvestment.exe)
-└── TradeView/             (reserved)
+└── TradeView/             Vue 3 + TypeScript web dashboard
 ```
 
 ---
@@ -336,6 +336,63 @@ Output: `bin\publish\win-x64\SujinsInvestment.exe`
 Installer: `installer\Output\SujinsInvestment-Setup-1.0.0.exe`
 
 EXE properties: Product = `Sujin's Investment` · Version = `1.0.0` · Company = `Sujin M`
+
+---
+
+### TradeView — Vue 3 Web Dashboard
+
+Browser-based trading dashboard connecting to the FastAPI backend.
+
+| | |
+|---|---|
+| Language | TypeScript |
+| Framework | Vue 3 + Vite + Tailwind CSS |
+| State | Pinia |
+| Real-time | WebSocket (`/api/v1/etoro/ws/live`) |
+| Requires | BackendFastAPI running on `http://localhost:8000` |
+
+**Starting the dev server:**
+
+```powershell
+cd Investment_App\TradeView
+npm install
+npm run dev        # http://localhost:5173
+```
+
+**`TradeView/.env` (local dev):**
+
+```dotenv
+VITE_API_URL=http://localhost:8000
+```
+
+**Features:**
+
+#### eToro Watchlists
+
+Browse, search, and inspect all eToro watchlists from the web UI.
+
+- **Watchlist cards** — shows type (Dynamic / Static), rank, item count, and first 5 instrument IDs
+- **Detail modal** — click any watchlist to open a live instrument table:
+
+| Column | Source |
+|---|---|
+| Symbol | eToro instrument catalogue (local DB) |
+| Price | Live via WebSocket — flashes green/red on tick |
+| 1-Day | Yahoo Finance daily close: today vs yesterday |
+| 1-Month | Yahoo Finance daily close: today vs ~30 days ago |
+| 1-Year | Yahoo Finance daily close: today vs ~365 days ago |
+
+- Price color flashes only on the number, not the whole row
+- Change columns auto-reconnect on WebSocket drop
+- Falls back to Yahoo Finance `latest_close` when the eToro rates API is unavailable
+
+**Historical data note:** The eToro Public API has no candle or historical price endpoints. All period changes (1-Day, 1-Month, 1-Year) are sourced from **Yahoo Finance** via `yfinance`. Symbol mapping:
+
+| eToro type | Example | Yahoo Finance ticker |
+|---|---|---|
+| Crypto (type 10) | `ETH` | `ETH-USD` |
+| Forex (type 1) | `EURUSD` | `EURUSD=X` |
+| Stocks / ETFs / Indices | `AMD`, `SMH` | `AMD`, `SMH` (unchanged) |
 
 ---
 

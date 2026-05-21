@@ -165,24 +165,126 @@ def list_instruments(
 class InstrumentPriceChange(BaseModel):
     instrument_id:   int
     current_price:   Optional[float]
+    change_1d_value: Optional[float]
+    change_1d_pct:   Optional[float]
     change_1m_value: Optional[float]
     change_1m_pct:   Optional[float]
     change_1y_value: Optional[float]
     change_1y_pct:   Optional[float]
 
 
+@router.get("/debug/rates")
+def debug_rates(
+    instrument_ids: str = Query(..., description="Comma-separated eToro instrument IDs, e.g. 9425,1001"),
+) -> dict:
+    """
+    Return the **raw** eToro rates API response.
+    Use this to see every field the rates endpoint actually returns (including 24h change field names).
+    """
+    import uuid, requests as _req
+    from app.core.config import get_settings
+
+    s = get_settings()
+    base = s.etoro_base_url.rstrip("/")
+    hdrs = {
+        "x-api-key":    s.etoro_api_key,
+        "x-user-key":   s.etoro_user_key,
+        "x-request-id": str(uuid.uuid4()),
+        "Accept":       "application/json",
+    }
+
+    results = {}
+
+    # ── Rates endpoint ────────────────────────────────────────────────────────
+    url = f"{base}/api/v1/market-data/instruments/rates"
+    try:
+        resp = _req.get(url, headers=hdrs, params={"instrumentIds": instrument_ids}, timeout=10)
+        body = resp.json() if "application/json" in resp.headers.get("content-type", "") else resp.text
+        first_keys = list(body["rates"][0].keys()) if isinstance(body, dict) and body.get("rates") else []
+        results["rates"] = {"status_code": resp.status_code, "first_rate_keys": first_keys, "body": body}
+    except Exception as exc:
+        results["rates"] = {"error": str(exc)}
+
+    # ── Instruments metadata endpoint (may contain daily % change) ────────────
+    url2 = f"{base}/api/v1/market-data/instruments"
+    try:
+        resp2 = _req.get(url2, headers={**hdrs, "x-request-id": str(uuid.uuid4())},
+                         params={"instrumentIds": instrument_ids}, timeout=10)
+        body2 = resp2.json() if "application/json" in resp2.headers.get("content-type", "") else resp2.text
+        items = (body2.get("instrumentDisplayDatas") or body2.get("instruments") or []) if isinstance(body2, dict) else []
+        first_keys2 = list(items[0].keys()) if items else []
+        results["instruments_metadata"] = {"status_code": resp2.status_code, "first_item_keys": first_keys2, "body": body2}
+    except Exception as exc:
+        results["instruments_metadata"] = {"error": str(exc)}
+
+    # ── Try several candle/chart URL patterns ─────────────────────────────────
+    candle_candidates = [
+        f"{base}/api/v1/market-data/instruments/candles",
+        f"{base}/api/v1/market-data/charts/candles",
+        f"{base}/api/v1/market-data/instruments/charts",
+    ]
+    results["candle_probes"] = {}
+    for candidate in candle_candidates:
+        try:
+            r = _req.get(candidate, headers={**hdrs, "x-request-id": str(uuid.uuid4())},
+                         params={"instrumentIds": instrument_ids, "period": "OneMonth"}, timeout=10)
+            results["candle_probes"][candidate] = {
+                "status_code": r.status_code,
+                "body": r.json() if "application/json" in r.headers.get("content-type", "") else r.text,
+            }
+        except Exception as exc:
+            results["candle_probes"][candidate] = {"error": str(exc)}
+
+    return results
+
+
+@router.get("/debug/candles")
+def debug_candles(
+    instrument_id: int = Query(..., description="Single eToro instrument ID"),
+    period: str = Query("OneMonth", description="OneMonth or OneYear"),
+) -> dict:
+    """
+    Return the **raw** eToro candles API response for one instrument.
+    Use this to discover the exact response structure so the parser can be fixed.
+    """
+    import uuid, requests as _req
+    from app.core.config import get_settings
+
+    s = get_settings()
+    base = s.etoro_base_url.rstrip("/")
+    hdrs = {
+        "x-api-key":    s.etoro_api_key,
+        "x-user-key":   s.etoro_user_key,
+        "x-request-id": str(uuid.uuid4()),
+        "Accept":       "application/json",
+    }
+    url = f"{base}/api/v1/market-data/instruments/candles"
+    try:
+        resp = _req.get(url, headers=hdrs,
+                        params={"instrumentIds": str(instrument_id), "period": period},
+                        timeout=10)
+        return {
+            "url":         url,
+            "params":      {"instrumentIds": instrument_id, "period": period},
+            "status_code": resp.status_code,
+            "body":        resp.json() if resp.headers.get("content-type", "").startswith("application/json") else resp.text,
+        }
+    except Exception as exc:
+        return {"error": str(exc)}
+
+
 @router.get("/price-changes", response_model=list[InstrumentPriceChange])
 def get_price_changes(
     _user: CurrentUser,
+    db: _DBDep,
     instrument_ids: str = Query(
         ...,
         description="Comma-separated eToro instrument IDs (e.g. 9425,1001,100001)",
     ),
 ) -> list[InstrumentPriceChange]:
     """
-    Return 1-month and 1-year price changes for the given instrument IDs.
-    Fetches current prices from the eToro rates API and historical
-    prices from the eToro candles API.
+    Return 1-day, 1-month and 1-year price changes for the given instrument IDs.
+    Current price comes from the eToro rates API; historical prices from Yahoo Finance.
     """
     try:
         ids = [int(x.strip()) for x in instrument_ids.split(",") if x.strip().isdigit()]
@@ -191,7 +293,7 @@ def get_price_changes(
     if not ids:
         return []
 
-    data = etoro_market_service.fetch_price_changes_bulk(ids)
+    data = etoro_market_service.fetch_price_changes_bulk(ids, db=db)
     return [
         InstrumentPriceChange(instrument_id=iid, **info)
         for iid, info in data.items()
