@@ -468,6 +468,55 @@ python -m app.cli serve --host 0.0.0.0 --port 8000
 
 ---
 
+## Utility Scripts
+
+### `scripts/generate_etoro_uuid.py`
+
+Generates UUID(s) for eToro API testing. Produces `x-request-id` values used in eToro request headers, with output formats for curl, `.env`, and Python dicts.
+
+```bash
+# Single UUID + Python headers dict (default)
+python scripts/generate_etoro_uuid.py
+
+# Generate multiple UUIDs
+python scripts/generate_etoro_uuid.py --count 5
+
+# curl-ready header flags
+python scripts/generate_etoro_uuid.py --curl
+
+# .env variable format
+python scripts/generate_etoro_uuid.py --env
+
+# Python headers dict only
+python scripts/generate_etoro_uuid.py --headers
+```
+
+Example output:
+
+```
+Generated UUID(s):
+  293bc090-7ee5-4881-bd61-de82269a4e6a
+
+Python headers dict:
+  headers = {
+      "x-api-key": "<YOUR_ETORO_API_KEY>",
+      "x-user-key": "<YOUR_ETORO_USER_KEY>",
+      "x-request-id": "293bc090-7ee5-4881-bd61-de82269a4e6a",
+      "Accept": "application/json",
+  }
+```
+
+### `scripts/sync_etoro_instruments.py`
+
+Fetches all eToro instrument metadata from the Public API and stores it in the local SQLite database. Run this once after setup to populate the `EtoroInstrument` catalogue used for symbol → instrumentID resolution.
+
+```bash
+python scripts/sync_etoro_instruments.py
+python scripts/sync_etoro_instruments.py --db path/to/investment_app.db
+```
+
+---
+
 ## Running Tests
 
 ```bash
