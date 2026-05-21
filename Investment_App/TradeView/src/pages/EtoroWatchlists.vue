@@ -38,15 +38,25 @@ async function fetchSymbols(ids: number[]) {
 // ── Price-change state (loaded once per modal open) ───────────────────────────
 
 const priceChanges = ref<Record<string, InstrumentPriceChange>>({})
+let _priceChangesAbort: AbortController | null = null
 
 async function fetchPriceChanges(ids: number[]) {
+  _priceChangesAbort?.abort()
+  const abort = new AbortController()
+  _priceChangesAbort = abort
   priceChanges.value = {}
   try {
-    const list = await etoroInstrumentsApi.getPriceChanges(ids)
+    const list = await etoroInstrumentsApi.getPriceChanges(ids, abort.signal)
+    if (abort.signal.aborted || !showModal.value) return
     const map: Record<string, InstrumentPriceChange> = {}
     for (const item of list) map[String(item.instrument_id)] = item
     priceChanges.value = map
-  } catch { /* non-fatal — history columns show — */ }
+  } catch (error: any) {
+    if (error?.name === 'CanceledError' || error?.name === 'AbortError' || abort.signal.aborted) return
+    /* non-fatal — history columns show — */
+  } finally {
+    if (_priceChangesAbort === abort) _priceChangesAbort = null
+  }
 }
 
 // ── Live price state (WebSocket per open modal) ───────────────────────────────
@@ -146,7 +156,12 @@ function _wsDisconnect() {
   // Keep livePrices until modal fully closes so no flicker on reconnect
 }
 
-onUnmounted(() => { _wsDisconnect(); _prevMid.clear() })
+onUnmounted(() => {
+  _priceChangesAbort?.abort()
+  _priceChangesAbort = null
+  _wsDisconnect()
+  _prevMid.clear()
+})
 
 // ── Load ───────────────────────────────────────────────────────────────────────
 
@@ -193,6 +208,8 @@ function openWatchlist(wl: Watchlist) {
 }
 
 function closeModal() {
+  _priceChangesAbort?.abort()
+  _priceChangesAbort = null
   _wsDisconnect()
   showModal.value    = false
   selectedWl.value   = null

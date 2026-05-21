@@ -40,10 +40,10 @@ export const etoroInstrumentsApi = {
   },
 
   /** GET /api/v1/etoro/instruments/price-changes?instrument_ids=1001,9425 */
-  async getPriceChanges(instrumentIds: number[]): Promise<InstrumentPriceChange[]> {
+  async getPriceChanges(instrumentIds: number[], signal?: AbortSignal): Promise<InstrumentPriceChange[]> {
     const { data } = await api.get<InstrumentPriceChange[]>(
       '/api/v1/etoro/instruments/price-changes',
-      { params: { instrument_ids: instrumentIds.join(',') } },
+      { params: { instrument_ids: instrumentIds.join(',') }, signal },
     )
     return data
   },

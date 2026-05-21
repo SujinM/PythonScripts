@@ -27,11 +27,18 @@ export function useLiveTick(broker: string, instruments: string[] = []) {
   let reconnectAttempts = 0          // tracks consecutive failures for backoff
   let refreshTimer: ReturnType<typeof setTimeout> | null = null  // debounce refreshAll
 
+  function resolveInstruments(): string[] {
+    if (instruments.length) return instruments
+    const holdings = portfolio.holdings[broker] ?? []
+    return [...new Set(holdings.map((holding) => holding.instrument_key).filter(Boolean))]
+  }
+
   function buildUrl(): string {
     const base = import.meta.env.VITE_API_URL ?? 'http://localhost:8000'
     const wsBase = base.replace(/^http/, 'ws')
     const path = `/api/v1/${broker}/ws/live`
-    const query = instruments.length ? `?instruments=${instruments.join(',')}` : ''
+    const resolvedInstruments = resolveInstruments()
+    const query = resolvedInstruments.length ? `?instruments=${resolvedInstruments.join(',')}` : ''
     return `${wsBase}${path}${query}`
   }
 

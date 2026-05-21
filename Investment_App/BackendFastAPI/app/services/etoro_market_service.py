@@ -14,7 +14,7 @@ from __future__ import annotations
 import logging
 import uuid
 from datetime import date, datetime, timedelta, timezone
-from typing import Optional
+from typing import Callable, Optional
 
 import requests
 from sqlalchemy.orm import Session
@@ -268,7 +268,10 @@ def _to_yf_ticker(symbol: str, type_id: int | None) -> str:
     return sym                       # AMD, AAPL, SMH, etc. → unchanged
 
 
-def _fetch_yf_history(id_sym_map: dict[int, tuple[str, int | None]]) -> dict[int, dict]:
+def _fetch_yf_history(
+    id_sym_map: dict[int, tuple[str, int | None]],
+    should_cancel: Callable[[], bool] | None = None,
+) -> dict[int, dict]:
     """
     Download ~400 days of daily close prices from Yahoo Finance for all
     instruments in *id_sym_map* and return a dict::
@@ -292,6 +295,9 @@ def _fetch_yf_history(id_sym_map: dict[int, tuple[str, int | None]]) -> dict[int
     result: dict[int, dict] = {}
 
     for iid, (sym, type_id) in id_sym_map.items():
+        if should_cancel and should_cancel():
+            _log.info("[yfinance] cancelled before fetching remaining symbols")
+            break
         ticker_str = _to_yf_ticker(sym, type_id)
         empty = {"prev_close": None, "price_1m_ago": None, "price_1y_ago": None}
         try:
@@ -334,6 +340,7 @@ def _fetch_yf_history(id_sym_map: dict[int, tuple[str, int | None]]) -> dict[int
 def fetch_price_changes_bulk(
     instrument_ids: list[int],
     db: Optional[Session] = None,
+    should_cancel: Callable[[], bool] | None = None,
 ) -> dict[int, dict]:
     """
     Return 1-day, 1-month and 1-year price changes for the given eToro instrument IDs.
@@ -361,8 +368,17 @@ def fetch_price_changes_bulk(
     hdrs    = _headers()
     ids_str = ",".join(str(i) for i in instrument_ids)
 
+    def _merge_rates_from_response(response_json: dict) -> None:
+        for rate in response_json.get("rates", []):
+            iid   = rate.get("instrumentID")
+            price = float(rate.get("bid") or rate.get("ask") or rate.get("lastExecution") or 0.0)
+            if iid is not None and price:
+                current[int(iid)] = price
+
     # ── Current prices from eToro rates API ──────────────────────────────────
     current: dict[int, float] = {}
+    if should_cancel and should_cancel():
+        return {}
     try:
         resp = requests.get(
             f"{base}/api/v1/market-data/instruments/rates",
@@ -371,23 +387,51 @@ def fetch_price_changes_bulk(
             timeout=_TIMEOUT,
         )
         resp.raise_for_status()
-        for rate in resp.json().get("rates", []):
-            iid   = rate.get("instrumentID")
-            price = float(rate.get("bid") or rate.get("ask") or rate.get("lastExecution") or 0.0)
-            if iid is not None and price:
-                current[int(iid)] = price
+        _merge_rates_from_response(resp.json())
     except Exception as exc:
         _log.warning("[etoro rates] fetch failed: %s", exc)
+        recovered_ids: list[int] = []
+        failed_ids: list[int] = []
+        for iid in instrument_ids:
+            if should_cancel and should_cancel():
+                return {}
+            try:
+                resp = requests.get(
+                    f"{base}/api/v1/market-data/instruments/rates",
+                    headers=hdrs,
+                    params={"instrumentIds": str(iid)},
+                    timeout=_TIMEOUT,
+                )
+                resp.raise_for_status()
+                _merge_rates_from_response(resp.json())
+                if iid in current:
+                    recovered_ids.append(iid)
+            except Exception as single_exc:
+                failed_ids.append(iid)
+                _log.debug("[etoro rates] single fetch failed for %s: %s", iid, single_exc)
+        if recovered_ids:
+            _log.info(
+                "[etoro rates] recovered %d/%d instrument(s) via single-ID retry",
+                len(recovered_ids),
+                len(instrument_ids),
+            )
+        if failed_ids:
+            _log.warning(
+                "[etoro rates] failed instrument IDs after single-ID retry: %s",
+                ",".join(str(iid) for iid in failed_ids),
+            )
 
     # ── Historical prices from Yahoo Finance ─────────────────────────────────
     yf_data: dict[int, dict] = {}
     if db is not None:
+        if should_cancel and should_cancel():
+            return {}
         from app.db.models import EtoroInstrument
         rows = db.query(EtoroInstrument).filter(
             EtoroInstrument.instrument_id.in_(instrument_ids)
         ).all()
         id_sym_map = {r.instrument_id: (r.symbol, r.instrument_type_id) for r in rows}
-        yf_data = _fetch_yf_history(id_sym_map)
+        yf_data = _fetch_yf_history(id_sym_map, should_cancel=should_cancel)
 
     # ── Assemble result ───────────────────────────────────────────────────────
     def _change(now: float | None, then: float | None) -> tuple[float | None, float | None]:

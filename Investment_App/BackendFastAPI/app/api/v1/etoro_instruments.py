@@ -12,13 +12,16 @@ Endpoints
 
 from __future__ import annotations
 
+import asyncio
+from threading import Event
 from datetime import datetime, timezone
 from typing import Annotated, List, Optional
 
 import httpx
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
+from starlette.concurrency import run_in_threadpool
 
 from app.auth.deps import CurrentUser
 from app.db.models import EtoroInstrument
@@ -274,9 +277,10 @@ def debug_candles(
 
 
 @router.get("/price-changes", response_model=list[InstrumentPriceChange])
-def get_price_changes(
+async def get_price_changes(
     _user: CurrentUser,
     db: _DBDep,
+    request: Request,
     instrument_ids: str = Query(
         ...,
         description="Comma-separated eToro instrument IDs (e.g. 9425,1001,100001)",
@@ -293,7 +297,27 @@ def get_price_changes(
     if not ids:
         return []
 
-    data = etoro_market_service.fetch_price_changes_bulk(ids, db=db)
+    cancel_event = Event()
+
+    async def _watch_disconnect() -> None:
+        while not cancel_event.is_set():
+            if await request.is_disconnected():
+                cancel_event.set()
+                return
+            await asyncio.sleep(0.1)
+
+    watcher = asyncio.create_task(_watch_disconnect())
+    try:
+        data = await run_in_threadpool(
+            etoro_market_service.fetch_price_changes_bulk,
+            ids,
+            db,
+            lambda: cancel_event.is_set(),
+        )
+    finally:
+        cancel_event.set()
+        watcher.cancel()
+
     return [
         InstrumentPriceChange(instrument_id=iid, **info)
         for iid, info in data.items()
