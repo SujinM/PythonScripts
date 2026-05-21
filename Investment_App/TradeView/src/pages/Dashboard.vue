@@ -160,6 +160,7 @@ const exchangePieData = computed(() => {
           :categories="gainersBar.categories"
           :values="gainersBar.values"
           :color="CHART_COLORS[2]"
+          :formatter="(v) => v.toFixed(2) + '%'"
           height="260px"
         />
         <div v-else class="h-[260px] flex items-center justify-center">

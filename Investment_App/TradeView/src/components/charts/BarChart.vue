@@ -11,6 +11,7 @@ interface Props {
   color?: string
   horizontal?: boolean
   height?: string
+  formatter?: (v: number) => string
 }
 
 const props = withDefaults(defineProps<Props>(), {
@@ -34,6 +35,12 @@ const option = computed((): EChartsOption => {
       backgroundColor: isDark ? '#141827' : '#ffffff',
       borderColor: isDark ? '#1e2340' : '#e2e8f0',
       textStyle: { color: labelColor, fontSize: 12 },
+      ...(props.formatter ? {
+        formatter: (params: any) => {
+          const p = Array.isArray(params) ? params[0] : params
+          return `${p.name}<br/>${p.marker}${props.formatter!(p.value)}`
+        },
+      } : {}),
     },
     grid: {
       left: props.horizontal ? '12%' : '2%',
@@ -50,7 +57,7 @@ const option = computed((): EChartsOption => {
       : { type: 'category', data: props.categories, axisLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 11, rotate: props.categories.length > 8 ? 30 : 0 }, splitLine: { show: false } },
     yAxis: props.horizontal
       ? { type: 'category', data: props.categories, axisLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 11 } }
-      : { type: 'value', axisLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 11 }, splitLine: { lineStyle: { color: gridColor, type: 'dashed' } } },
+      : { type: 'value', axisLine: { lineStyle: { color: gridColor } }, axisLabel: { color: textColor, fontSize: 11, ...(props.formatter ? { formatter: (v: number) => props.formatter!(v) } : {}) }, splitLine: { lineStyle: { color: gridColor, type: 'dashed' } } },
     series: [
       {
         type: 'bar',
