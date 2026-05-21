@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "Investment_App/etoro",
+        "Investment_App/upstox"
+    ]
+}

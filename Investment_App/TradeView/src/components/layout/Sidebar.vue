@@ -24,7 +24,8 @@ const allNavItems: NavItem[] = [
   { name: 'Holdings',           to: '/holdings',           icon: 'wallet' },
   { name: 'Instruments',        to: '/instruments',        icon: 'chart-bar' },
   { name: 'Analysis',           to: '/statistics',         icon: 'chart-pie' },
-  { name: 'eToro Instruments',  to: '/etoro-instruments',  icon: 'globe',   broker: 'etoro' },
+  { name: 'eToro Instruments',  to: '/etoro-instruments',  icon: 'globe',      broker: 'etoro' },
+  { name: 'eToro Watchlists',   to: '/etoro-watchlists',   icon: 'bookmark',   broker: 'etoro' },
   { name: 'Upstox Instruments', to: '/upstox-instruments', icon: 'upstox',  broker: 'upstox' },
   { name: 'Calculations',       to: '/calc',               icon: 'calculator' },
   { name: 'Settings',           to: '/settings',           icon: 'cog' },
@@ -115,6 +116,9 @@ function isActive(path: string): boolean {
           </svg>
           <svg v-else-if="item.icon === 'globe'" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M3.055 11H5a2 2 0 012 2v1a2 2 0 002 2 2 2 0 012 2v2.945M8 3.935V5.5A2.5 2.5 0 0010.5 8h.5a2 2 0 012 2 2 2 0 104 0 2 2 0 012-2h1.064M15 20.488V18a2 2 0 012-2h3.064M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+          <svg v-else-if="item.icon === 'bookmark'" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
           </svg>
           <svg v-else-if="item.icon === 'upstox'" class="w-5 h-5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6" />

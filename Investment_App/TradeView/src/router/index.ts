@@ -95,6 +95,12 @@ const routes: RouteRecordRaw[] = [
         meta: { title: 'eToro Markets' },
       },
       {
+        path: 'etoro-watchlists',
+        name: 'etoro-watchlists',
+        component: () => import('@/pages/EtoroWatchlists.vue'),
+        meta: { title: 'eToro Watchlists' },
+      },
+      {
         path: 'upstox-instruments',
         name: 'upstox-instruments',
         component: () => import('@/pages/UpstoxInstruments.vue'),

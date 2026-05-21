@@ -303,6 +303,57 @@ Interactive API docs: http://127.0.0.1:8000/docs
 | `POST` | `/api/v1/{broker}/ai/recommendation` | BUY / SELL / HOLD signal with composite score |
 | `GET` | `/api/v1/{broker}/ai/backtest/{symbol}` | 20-scenario score sweep (backtest analysis) |
 
+### eToro Watchlists
+| Method | Full URL | Auth | Description |
+|---|---|---|---|
+| `GET` | `http://127.0.0.1:8000/api/v1/etoro/watchlists` | Bearer JWT | All watchlists for the authenticated user |
+| `GET` | `http://127.0.0.1:8000/api/v1/etoro/watchlists/{id}` | Bearer JWT | Single watchlist by ID |
+
+#### Query parameters (`GET http://127.0.0.1:8000/api/v1/etoro/watchlists`)
+| Parameter | Type | Default | Description |
+|---|---|---|---|
+| `items_per_page` | int (1–1000) | `100` | Max items returned per watchlist |
+| `ensure_builtin` | bool | `true` | Include eToro built-in watchlists |
+| `add_related_assets` | bool | `false` | Include `related_assets` list |
+
+#### Full URL examples
+```
+GET http://127.0.0.1:8000/api/v1/etoro/watchlists
+GET http://127.0.0.1:8000/api/v1/etoro/watchlists?items_per_page=100&ensure_builtin=true&add_related_assets=false
+GET http://127.0.0.1:8000/api/v1/etoro/watchlists/12345
+```
+
+#### Example response
+```json
+{
+  "watchlists": [
+    {
+      "watchlist_id": "12345",
+      "name": "Tech Watchlist",
+      "gcid": 12345,
+      "watchlist_type": "Static",
+      "total_items": 100,
+      "is_default": true,
+      "is_user_selected_default": true,
+      "rank": 1,
+      "dynamic_url": null,
+      "items": [
+        { "item_id": 12345, "item_type": "Instrument", "item_rank": 1 }
+      ],
+      "related_assets": []
+    }
+  ],
+  "meta": {
+    "page_number": 0,
+    "items_per_page": 100,
+    "max_items_in_watchlist_limit": 1000,
+    "max_watchlists_limit": 10
+  },
+  "is_succeeded": true,
+  "total": 1
+}
+```
+
 ### Live Prices (WebSocket)
 | Method | Endpoint | Description |
 |---|---|---|
