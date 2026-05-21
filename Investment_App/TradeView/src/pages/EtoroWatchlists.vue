@@ -1,8 +1,10 @@
 <script setup lang="ts">
-import { ref, computed, onMounted, onUnmounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 import { etoroWatchlistsApi } from '@/api/etoroWatchlists'
+import { etoroInstrumentsApi } from '@/api/etoroInstruments'
 import type { Watchlist } from '@/types/etoroWatchlist'
 import type { EToroTick, LiveTickFrame } from '@/types/portfolio'
+import type { InstrumentPriceChange } from '@/api/etoroInstruments'
 import { formatPrice } from '@/utils/formatters'
 
 // ── State ──────────────────────────────────────────────────────────────────────
@@ -16,15 +18,50 @@ const selectedWl    = ref<Watchlist | null>(null)
 const showModal     = ref(false)
 const addRelated    = ref(false)
 
-// ── Live price state (per open modal) ─────────────────────────────────────────
+// ── Instrument symbol cache (id → symbol) ────────────────────────────────────
+
+const symbolCache = ref<Record<string, string>>({})
+
+async function fetchSymbols(ids: number[]) {
+  const missing = ids.filter(id => !symbolCache.value[String(id)])
+  if (!missing.length) return
+  try {
+    const results = await Promise.allSettled(missing.map(id => etoroInstrumentsApi.getInstrument(id)))
+    results.forEach((r, i) => {
+      if (r.status === 'fulfilled') {
+        symbolCache.value[String(missing[i])] = r.value.symbol
+      }
+    })
+  } catch { /* non-fatal */ }
+}
+
+// ── Price-change state (loaded once per modal open) ───────────────────────────
+
+const priceChanges = ref<Record<string, InstrumentPriceChange>>({})
+
+async function fetchPriceChanges(ids: number[]) {
+  priceChanges.value = {}
+  try {
+    const list = await etoroInstrumentsApi.getPriceChanges(ids)
+    const map: Record<string, InstrumentPriceChange> = {}
+    for (const item of list) map[String(item.instrument_id)] = item
+    priceChanges.value = map
+  } catch { /* non-fatal — history columns show — */ }
+}
+
+// ── Live price state (WebSocket per open modal) ───────────────────────────────
 
 interface LivePrice {
   name:      string
   bid:       number | null
   ask:       number | null
   mid:       number | null
-  updatedAt: number
 }
+
+// Non-reactive map for prev prices (avoids watcher dependency loop)
+const _prevMid = new Map<string, number>()
+const tickDir  = ref<Record<string, 'up' | 'down'>>({})
+const _flashTimers: Record<string, ReturnType<typeof setTimeout>> = {}
 
 const livePrices   = ref<Record<string, LivePrice>>({})
 const wsConnected  = ref(false)
@@ -36,6 +73,37 @@ let   _wsStop      = false
 function _wsUrl(instrumentIds: string[]): string {
   const base = (import.meta.env.VITE_API_URL ?? 'http://localhost:8000').replace(/^http/, 'ws')
   return `${base}/api/v1/etoro/ws/live?instruments=${instrumentIds.join(',')}`
+}
+
+function _applyTick(id: string, t: EToroTick) {
+  const cur = t.mid ?? t.ask ?? t.bid
+
+  // Only store a live-price entry when there is at least one usable price value.
+  // This preserves the fallback to priceChanges.current_price for instruments
+  // that arrive in the tick frame but carry no price (all null).
+  if (t.mid != null || t.ask != null || t.bid != null) {
+    livePrices.value[id] = { name: t.name, bid: t.bid, ask: t.ask, mid: t.mid }
+  }
+
+  const prev = _prevMid.get(id)
+
+  if (cur == null || prev === undefined || cur === prev) {
+    if (cur != null) _prevMid.set(id, cur)
+    return
+  }
+  _prevMid.set(id, cur)
+
+  const dir: 'up' | 'down' = cur > prev ? 'up' : 'down'
+  clearTimeout(_flashTimers[id])
+
+  // Remove and re-add so CSS animation always restarts
+  if (tickDir.value[id]) {
+    delete tickDir.value[id]
+    nextTick(() => { tickDir.value[id] = dir })
+  } else {
+    tickDir.value[id] = dir
+  }
+  _flashTimers[id] = setTimeout(() => { delete tickDir.value[id] }, 900)
 }
 
 function _wsConnect(instrumentIds: string[]) {
@@ -52,20 +120,10 @@ function _wsConnect(instrumentIds: string[]) {
   _ws.onmessage = (event) => {
     try {
       const frame: LiveTickFrame = JSON.parse(event.data as string)
-      if (frame.error) {
-        wsError.value = frame.error
-        return
-      }
+      if (frame.error) { wsError.value = frame.error; return }
       if (!frame.ticks) return
       for (const [id, tick] of Object.entries(frame.ticks)) {
-        const t = tick as EToroTick
-        livePrices.value[id] = {
-          name:      t.name,
-          bid:       t.bid,
-          ask:       t.ask,
-          mid:       t.mid,
-          updatedAt: Date.now(),
-        }
+        _applyTick(id, tick as EToroTick)
       }
     } catch { /* ignore malformed frames */ }
   }
@@ -83,13 +141,12 @@ function _wsDisconnect() {
   _wsStop = true
   _wsReconnect && clearTimeout(_wsReconnect)
   _ws?.close()
-  _ws             = null
+  _ws               = null
   wsConnected.value = false
-  livePrices.value  = {}
-  wsError.value     = null
+  // Keep livePrices until modal fully closes so no flicker on reconnect
 }
 
-onUnmounted(_wsDisconnect)
+onUnmounted(() => { _wsDisconnect(); _prevMid.clear() })
 
 // ── Load ───────────────────────────────────────────────────────────────────────
 
@@ -123,17 +180,26 @@ const filtered = computed(() => {
 // ── Modal ──────────────────────────────────────────────────────────────────────
 
 function openWatchlist(wl: Watchlist) {
-  selectedWl.value  = wl
-  showModal.value   = true
-  livePrices.value  = {}
-  const ids = wl.items.map(i => String(i.item_id))
-  _wsConnect(ids)
+  selectedWl.value = wl
+  showModal.value  = true
+  livePrices.value = {}
+  priceChanges.value = {}
+  _prevMid.clear()
+  tickDir.value = {}
+  const ids = wl.items.map(i => i.item_id)
+  _wsConnect(ids.map(String))
+  fetchSymbols(ids)
+  fetchPriceChanges(ids)
 }
 
 function closeModal() {
   _wsDisconnect()
-  showModal.value  = false
-  selectedWl.value = null
+  showModal.value    = false
+  selectedWl.value   = null
+  livePrices.value   = {}
+  priceChanges.value = {}
+  _prevMid.clear()
+  tickDir.value = {}
 }
 
 // ── Helpers ────────────────────────────────────────────────────────────────────
@@ -151,13 +217,29 @@ function rankLabel(rank: number): string {
   return `#${rank}`
 }
 
-function priceColor(mid: number | null | undefined, bid: number | null | undefined, ask: number | null | undefined): string {
-  if (mid == null && bid == null) return 'var(--text-muted)'
-  return 'var(--text-primary)'
+/** Best display label: symbol from DB → name from WS tick → ID */
+function instrumentLabel(id: number): string {
+  return symbolCache.value[String(id)]
+    || livePrices.value[String(id)]?.name
+    || String(id)
 }
 
-function instrumentName(id: number): string {
-  return livePrices.value[String(id)]?.name ?? ''
+/** Current price: prefer live WS mid → ask → bid, then fall back to price-change endpoint */
+function currentPrice(id: number): number | null {
+  const lp = livePrices.value[String(id)]
+  if (lp) return lp.mid ?? lp.ask ?? lp.bid ?? null
+  return priceChanges.value[String(id)]?.current_price ?? null
+}
+
+function changeColor(val: number | null | undefined): string {
+  if (val == null) return 'var(--text-muted)'
+  return val >= 0 ? '#4ade80' : '#f87171'
+}
+
+function formatChange(val: number | null, pct: number | null): string {
+  if (val == null || pct == null) return '—'
+  const sign = val >= 0 ? '+' : ''
+  return `${sign}${formatPrice(val)} (${sign}${pct.toFixed(2)}%)`
 }
 
 onMounted(() => loadWatchlists())
@@ -424,7 +506,7 @@ onMounted(() => loadWatchlists())
                 </span>
               </div>
 
-              <!-- Items list with live prices -->
+              <!-- Items list with live prices + period changes -->
               <div v-if="selectedWl.items.length > 0">
                 <div class="flex items-center justify-between mb-2">
                   <p class="text-xs font-semibold uppercase tracking-wider" style="color: var(--text-muted);">
@@ -441,79 +523,63 @@ onMounted(() => loadWatchlists())
                   >
                     <span
                       class="inline-block w-1.5 h-1.5 rounded-full"
-                      :style="wsConnected
-                        ? 'background:#10B981;'
-                        : wsError
-                          ? 'background:#EF4444;'
-                          : 'background:#EAB308;'"
+                      :style="wsConnected ? 'background:#10B981;' : wsError ? 'background:#EF4444;' : 'background:#EAB308;'"
                     ></span>
                     {{ wsConnected ? 'Live' : wsError ? 'Error' : 'Connecting…' }}
                   </span>
                 </div>
 
-                <div class="rounded-lg overflow-hidden border border-gray-800/50">
-                  <table class="w-full text-xs">
+                <div class="rounded-lg overflow-x-auto border border-gray-800/50">
+                  <table class="w-full text-xs" style="min-width: 480px;">
                     <thead>
                       <tr style="background: var(--surface-primary);">
-                        <th class="text-left px-3 py-2 font-medium" style="color: var(--text-muted);">Instrument</th>
-                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">Bid</th>
-                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">Ask</th>
-                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">Mid</th>
+                        <th class="text-left px-3 py-2 font-medium" style="color: var(--text-muted);">Symbol</th>
+                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">Price</th>
+                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">1-Month</th>
+                        <th class="text-right px-3 py-2 font-medium" style="color: var(--text-muted);">1-Year</th>
                       </tr>
                     </thead>
                     <tbody>
                       <tr
                         v-for="item in selectedWl.items"
                         :key="item.item_id"
-                        class="border-t border-gray-800/40 hover:bg-white/2 transition-colors"
+                        class="border-t border-gray-800/40 transition-colors"
                       >
-                        <!-- Name / ID -->
-                        <td class="px-3 py-2">
+                        <!-- Symbol -->
+                        <td class="px-3 py-2 font-semibold" style="color: var(--text-primary);">
+                          {{ instrumentLabel(item.item_id) }}
+                        </td>
+
+                        <!-- Current price (live WS, flash-colored number only) -->
+                        <td class="px-3 py-2 text-right font-mono font-semibold">
                           <span
-                            v-if="livePrices[String(item.item_id)]?.name"
-                            class="font-semibold"
-                            style="color: var(--text-primary);"
+                            :class="tickDir[String(item.item_id)] === 'up' ? 'tick-up' : tickDir[String(item.item_id)] === 'down' ? 'tick-down' : ''"
+                            :style="{ color: tickDir[String(item.item_id)] === 'up' ? '#4ade80' : tickDir[String(item.item_id)] === 'down' ? '#f87171' : 'var(--text-primary)' }"
                           >
-                            {{ livePrices[String(item.item_id)].name }}
-                          </span>
-                          <span
-                            v-else
-                            class="font-mono animate-pulse"
-                            style="color: var(--text-muted);"
-                          >
-                            {{ item.item_id }}
+                            {{ currentPrice(item.item_id) != null
+                                ? '$' + currentPrice(item.item_id)!.toFixed(2)
+                                : '—' }}
                           </span>
                         </td>
-                        <!-- Bid -->
+
+                        <!-- 1-Month change -->
                         <td class="px-3 py-2 text-right font-mono">
-                          <span
-                            v-if="livePrices[String(item.item_id)]?.bid != null"
-                            style="color: #F87171;"
-                          >
-                            {{ formatPrice(livePrices[String(item.item_id)].bid!) }}
+                          <span :style="{ color: changeColor(priceChanges[String(item.item_id)]?.change_1m_value) }">
+                            {{ formatChange(
+                                priceChanges[String(item.item_id)]?.change_1m_value ?? null,
+                                priceChanges[String(item.item_id)]?.change_1m_pct   ?? null,
+                              ) }}
                           </span>
-                          <span v-else style="color: var(--text-muted);">—</span>
                         </td>
-                        <!-- Ask -->
+
+                        <!-- 1-Year change -->
                         <td class="px-3 py-2 text-right font-mono">
-                          <span
-                            v-if="livePrices[String(item.item_id)]?.ask != null"
-                            style="color: #34D399;"
-                          >
-                            {{ formatPrice(livePrices[String(item.item_id)].ask!) }}
+                          <span :style="{ color: changeColor(priceChanges[String(item.item_id)]?.change_1y_value) }">
+                            {{ formatChange(
+                                priceChanges[String(item.item_id)]?.change_1y_value ?? null,
+                                priceChanges[String(item.item_id)]?.change_1y_pct   ?? null,
+                              ) }}
                           </span>
-                          <span v-else style="color: var(--text-muted);">—</span>
-                        </td>
-                        <!-- Mid -->
-                        <td class="px-3 py-2 text-right font-mono">
-                          <span
-                            v-if="livePrices[String(item.item_id)]?.mid != null"
-                            class="font-semibold"
-                            style="color: var(--text-primary);"
-                          >
-                            {{ formatPrice(livePrices[String(item.item_id)].mid!) }}
-                          </span>
-                          <span v-else style="color: var(--text-muted);">—</span>
                         </td>
                       </tr>
                     </tbody>
@@ -571,5 +637,21 @@ onMounted(() => loadWatchlists())
 }
 .modal-enter-from .relative {
   transform: scale(0.95);
+}
+
+/* Live tick price-number flash — color glow on the span only */
+@keyframes flash-up {
+  0%   { text-shadow: 0 0 8px rgba(34, 197, 94, 0.9); }
+  100% { text-shadow: none; }
+}
+@keyframes flash-down {
+  0%   { text-shadow: 0 0 8px rgba(239, 68, 68, 0.9); }
+  100% { text-shadow: none; }
+}
+.tick-up {
+  animation: flash-up 0.9s ease-out;
+}
+.tick-down {
+  animation: flash-down 0.9s ease-out;
 }
 </style>

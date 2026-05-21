@@ -220,3 +220,146 @@ def fetch_bulk_market_data(symbols: list[str], db: Session) -> list[dict]:
             "timestamp":     now,
         })
     return results
+
+
+# ── Bulk period price-change fetch ────────────────────────────────────────────
+
+def _fetch_candles_first_close(
+    base: str,
+    hdrs: dict,
+    instrument_ids: list[int],
+    period: str,
+) -> dict[int, float]:
+    """
+    Call ``GET /api/v1/market-data/instruments/candles`` for *period* and return
+    a dict mapping instrumentID → closing price of the **oldest** candle returned
+    (i.e. the price at the start of that period).
+
+    If the endpoint is unavailable or returns no data, returns ``{}``.
+
+    Period values accepted by eToro: ``OneMonth``, ``OneYear`` (others possible).
+    """
+    ids_str = ",".join(str(i) for i in instrument_ids)
+    try:
+        resp = requests.get(
+            f"{base}/api/v1/market-data/instruments/candles",
+            headers=hdrs,
+            params={"instrumentIds": ids_str, "period": period},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        body = resp.json()
+    except Exception:
+        return {}
+
+    out: dict[int, float] = {}
+
+    # eToro candles response can come in two shapes:
+    #   Shape A: { "candles": [{ "instrumentID": 9425, "candles": [...] }] }
+    #   Shape B: [{ "instrumentID": 9425, "candles": [...] }]  (bare array)
+    if isinstance(body, dict):
+        charts = (
+            body.get("candles")
+            or body.get("Candles")
+            or body.get("charts")
+            or []
+        )
+    elif isinstance(body, list):
+        charts = body
+    else:
+        return {}
+
+    for chart in charts:
+        iid = chart.get("instrumentID") or chart.get("InstrumentID")
+        candles: list[dict] = chart.get("candles") or chart.get("Candles") or []
+        if iid is None or not candles:
+            continue
+        # Oldest candle first — use its close as "price N period ago"
+        oldest = candles[0]
+        close = float(
+            oldest.get("close") or oldest.get("Close")
+            or oldest.get("open")  or oldest.get("Open")
+            or 0.0
+        )
+        if close:
+            out[int(iid)] = close
+    return out
+
+
+def fetch_price_changes_bulk(instrument_ids: list[int]) -> dict[int, dict]:
+    """
+    Return 1-month and 1-year price changes for the given eToro instrument IDs.
+
+    Result dict shape per ID::
+
+        {
+          "current_price":  float | None,
+          "change_1m_value": float | None,
+          "change_1m_pct":   float | None,
+          "change_1y_value": float | None,
+          "change_1y_pct":   float | None,
+        }
+
+    Fields are ``None`` when eToro API does not return the required data.
+    """
+    s = get_settings()
+    if not s.etoro_api_key or not s.etoro_user_key or not instrument_ids:
+        return {}
+
+    base = _base_url()
+    hdrs = _headers()
+    ids_str = ",".join(str(i) for i in instrument_ids)
+
+    # ── Current prices ────────────────────────────────────────────────────────
+    current: dict[int, float] = {}
+    try:
+        resp = requests.get(
+            f"{base}/api/v1/market-data/instruments/rates",
+            headers=hdrs,
+            params={"instrumentIds": ids_str},
+            timeout=_TIMEOUT,
+        )
+        resp.raise_for_status()
+        for rate in resp.json().get("rates", []):
+            iid = rate.get("instrumentID")
+            # bid is preferred; fall back to ask then lastExecution
+            price = float(
+                rate.get("bid") or rate.get("ask") or rate.get("lastExecution") or 0.0
+            )
+            if iid is not None and price:
+                current[int(iid)] = price
+    except Exception:
+        pass
+
+    # ── Historical first-close prices ─────────────────────────────────────────
+    hdrs1m = _headers()   # fresh x-request-id per call
+    past_1m = _fetch_candles_first_close(base, hdrs1m, instrument_ids, "OneMonth")
+
+    hdrs1y = _headers()
+    past_1y = _fetch_candles_first_close(base, hdrs1y, instrument_ids, "OneYear")
+
+    # ── Assemble result ───────────────────────────────────────────────────────
+    result: dict[int, dict] = {}
+    for iid in instrument_ids:
+        cur = current.get(iid)
+        p1m = past_1m.get(iid)
+        p1y = past_1y.get(iid)
+
+        def _change(now: float | None, then: float | None):
+            if now is None or then is None or then == 0.0:
+                return None, None
+            val = round(now - then, 6)
+            pct = round((now - then) / then * 100, 4)
+            return val, pct
+
+        v1m, p1m_pct = _change(cur, p1m)
+        v1y, p1y_pct = _change(cur, p1y)
+
+        result[iid] = {
+            "current_price":   cur,
+            "change_1m_value": v1m,
+            "change_1m_pct":   p1m_pct,
+            "change_1y_value": v1y,
+            "change_1y_pct":   p1y_pct,
+        }
+    return result

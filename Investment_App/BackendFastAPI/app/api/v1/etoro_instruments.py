@@ -24,6 +24,7 @@ from app.auth.deps import CurrentUser
 from app.db.models import EtoroInstrument
 from app.db.session import get_db
 from app.core.logger import get_logger
+from app.services import etoro_market_service
 
 router = APIRouter(prefix="/etoro/instruments", tags=["etoro-instruments"])
 logger = get_logger(__name__)
@@ -157,6 +158,44 @@ def list_instruments(
         page_size=page_size,
         total_pages=total_pages,
     )
+
+
+# ── Price-change schema ──────────────────────────────────────────────────────
+
+class InstrumentPriceChange(BaseModel):
+    instrument_id:   int
+    current_price:   Optional[float]
+    change_1m_value: Optional[float]
+    change_1m_pct:   Optional[float]
+    change_1y_value: Optional[float]
+    change_1y_pct:   Optional[float]
+
+
+@router.get("/price-changes", response_model=list[InstrumentPriceChange])
+def get_price_changes(
+    _user: CurrentUser,
+    instrument_ids: str = Query(
+        ...,
+        description="Comma-separated eToro instrument IDs (e.g. 9425,1001,100001)",
+    ),
+) -> list[InstrumentPriceChange]:
+    """
+    Return 1-month and 1-year price changes for the given instrument IDs.
+    Fetches current prices from the eToro rates API and historical
+    prices from the eToro candles API.
+    """
+    try:
+        ids = [int(x.strip()) for x in instrument_ids.split(",") if x.strip().isdigit()]
+    except ValueError:
+        ids = []
+    if not ids:
+        return []
+
+    data = etoro_market_service.fetch_price_changes_bulk(ids)
+    return [
+        InstrumentPriceChange(instrument_id=iid, **info)
+        for iid, info in data.items()
+    ]
 
 
 @router.get("/{instrument_id}", response_model=EtoroInstrumentRead)

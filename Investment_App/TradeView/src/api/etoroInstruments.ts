@@ -15,6 +15,15 @@ export interface EtoroListParams extends EtoroInstrumentFilters {
   sort_order?: 'asc' | 'desc'
 }
 
+export interface InstrumentPriceChange {
+  instrument_id:   number
+  current_price:   number | null
+  change_1m_value: number | null
+  change_1m_pct:   number | null
+  change_1y_value: number | null
+  change_1y_pct:   number | null
+}
+
 export const etoroInstrumentsApi = {
   /** GET /api/v1/etoro/instruments */
   async getInstruments(params?: EtoroListParams): Promise<PaginatedEtoroInstruments> {
@@ -25,6 +34,15 @@ export const etoroInstrumentsApi = {
   /** GET /api/v1/etoro/instruments/{id} */
   async getInstrument(instrumentId: number): Promise<EtoroInstrument> {
     const { data } = await api.get<EtoroInstrument>(`/api/v1/etoro/instruments/${instrumentId}`)
+    return data
+  },
+
+  /** GET /api/v1/etoro/instruments/price-changes?instrument_ids=1001,9425 */
+  async getPriceChanges(instrumentIds: number[]): Promise<InstrumentPriceChange[]> {
+    const { data } = await api.get<InstrumentPriceChange[]>(
+      '/api/v1/etoro/instruments/price-changes',
+      { params: { instrument_ids: instrumentIds.join(',') } },
+    )
     return data
   },
 
